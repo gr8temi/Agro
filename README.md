@@ -1,5 +1,7 @@
 # Poultry Farm Manager - Mobile App
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 A React Native mobile application for managing poultry farm operations on iOS and Android devices. Built with Expo for seamless development and deployment.
 
 ## Features
