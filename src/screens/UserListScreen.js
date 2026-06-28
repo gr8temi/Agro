@@ -39,6 +39,7 @@ const UserListScreen = () => {
     );
   }
 
+
   const renderItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.card} 
@@ -67,15 +68,6 @@ const UserListScreen = () => {
     <View style={styles.mainContainer}>
       <CustomHeader title="Manage Users" navigation={navigation} showBack={true} />
       <View style={styles.container}>
-        <TouchableOpacity 
-          style={styles.addButton} 
-          onPress={() => navigation.navigate('AddUser')}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons name="account-plus" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Add New User</Text>
-        </TouchableOpacity>
-
         <FlatList
           data={users}
           keyExtractor={(item) => item.id.toString()}
@@ -89,6 +81,16 @@ const UserListScreen = () => {
             </View>
           }
         />
+        
+        {/* FAB */}
+        {/* FAB */}
+        <TouchableOpacity 
+          style={styles.fab} 
+          onPress={() => navigation.navigate('AddUser')}
+          activeOpacity={0.8}
+        >
+          <MaterialCommunityIcons name="account-plus" size={30} color="#fff" />
+        </TouchableOpacity>
       </View>
     </View>
   );
@@ -109,28 +111,8 @@ const getStyles = (theme) => StyleSheet.create({
     alignItems: 'center',
     backgroundColor: theme.colors.background,
   },
-  addButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.m,
-    paddingHorizontal: theme.spacing.l,
-    borderRadius: theme.borderRadius.l,
-    marginBottom: theme.spacing.l,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-  },
-  addButtonText: {
-    ...theme.typography.button,
-    marginLeft: theme.spacing.s,
-    fontSize: 18,
-  },
   listContent: {
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: 80, // Space for FAB
   },
   card: {
     flexDirection: 'row',
@@ -187,6 +169,22 @@ const getStyles = (theme) => StyleSheet.create({
     ...theme.typography.body,
     marginTop: theme.spacing.m,
     textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
 });
 

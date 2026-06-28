@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "690125633006",
+    "project_id": "cluckops",
+    "storage_bucket": "cluckops.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:690125633006:android:b2dd4898d11442ca510aff",
+        "android_client_info": {
+          "package_name": "com.cluckops.mobile"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDB3ZeV4PrMJTKVJcAptHsZ-7wM2jnSRwE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

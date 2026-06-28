@@ -11,7 +11,7 @@ const WelcomeScreen = ({ navigation }) => {
     <View style={styles.container}>
       <View style={styles.header}>
         <MaterialCommunityIcons name="egg-easter" size={80} color={theme.colors.primary} />
-        <Text style={styles.title}>Poultry Manager</Text>
+        <Text style={styles.title}>CluckOps</Text>
         <Text style={styles.subtitle}>Manage your farm efficiently</Text>
       </View>
 

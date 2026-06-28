@@ -1,14 +1,17 @@
 import React, { useContext, useState, useEffect } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 const LoginScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const { login, biometricLogin } = useContext(AuthContext);
   const { theme } = useTheme();
   const styles = getStyles(theme);
@@ -17,32 +20,47 @@ const LoginScreen = ({ navigation }) => {
   const [biometricsAttempted, setBiometricsAttempted] = useState(false);
 
   useEffect(() => {
-    attemptBiometricLogin();
-  }, []);
+    let cancelled = false;
+    let timeoutId;
 
-  const attemptBiometricLogin = async () => {
-    try {
-      const biometricsEnabled = await AsyncStorage.getItem('biometricsEnabled');
-      if (biometricsEnabled === 'true') {
+    const attemptBiometricLogin = async () => {
+      try {
+        const biometricsEnabled = await AsyncStorage.getItem('biometricsEnabled');
+        if (biometricsEnabled !== 'true') {
+          if (!cancelled) setShowPasswordForm(true);
+          return;
+        }
+
         const hasHardware = await LocalAuthentication.hasHardwareAsync();
         const isEnrolled = await LocalAuthentication.isEnrolledAsync();
-        
-        if (hasHardware && isEnrolled) {
-          // Auto-attempt biometrics
-          await biometricLogin();
-        } else {
-          setShowPasswordForm(true);
+
+        if (!hasHardware || !isEnrolled) {
+          if (!cancelled) setShowPasswordForm(true);
+          return;
         }
-      } else {
-        setShowPasswordForm(true);
+
+        timeoutId = setTimeout(() => {
+          cancelled = true;
+          setShowPasswordForm(true);
+          setBiometricsAttempted(true);
+        }, 5000);
+
+        await biometricLogin();
+        clearTimeout(timeoutId);
+      } catch {
+        if (!cancelled) setShowPasswordForm(true);
+      } finally {
+        if (!cancelled) setBiometricsAttempted(true);
       }
-    } catch (error) {
-      console.log('Biometric login failed or cancelled:', error);
-      setShowPasswordForm(true);
-    } finally {
-      setBiometricsAttempted(true);
-    }
-  };
+    };
+
+    attemptBiometricLogin();
+
+    return () => {
+      cancelled = true;
+      if (timeoutId) clearTimeout(timeoutId);
+    };
+  }, []);
 
   const handleLogin = async () => {
     setIsLoginLoading(true);
@@ -55,7 +73,6 @@ const LoginScreen = ({ navigation }) => {
       }
       // Otherwise navigation happens automatically via AuthContext
     } catch (error) {
-      console.log(error);
       if (error.response && error.response.status === 401) {
         Toast.show({
           type: 'error',
@@ -103,7 +120,8 @@ const LoginScreen = ({ navigation }) => {
   }
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" bounces={false}>
       <Text style={styles.title}>Poultry Farm Manager</Text>
       <TextInput
         style={styles.input}
@@ -113,14 +131,26 @@ const LoginScreen = ({ navigation }) => {
         onChangeText={setUsername}
         autoCapitalize="none"
       />
-      <TextInput
-        style={styles.input}
-        placeholder="Password"
-        placeholderTextColor={theme.colors.textSecondary}
-        value={password}
-        onChangeText={setPassword}
-        secureTextEntry
-      />
+      <View style={styles.passwordContainer}>
+        <TextInput
+          style={styles.passwordInput}
+          placeholder="Password"
+          placeholderTextColor={theme.colors.textSecondary}
+          value={password}
+          onChangeText={setPassword}
+          secureTextEntry={!isPasswordVisible}
+        />
+        <TouchableOpacity 
+          onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+          style={styles.eyeIcon}
+        >
+          <MaterialCommunityIcons 
+            name={isPasswordVisible ? "eye" : "eye-off"} 
+            size={24} 
+            color={theme.colors.textSecondary} 
+          />
+        </TouchableOpacity>
+      </View>
       <TouchableOpacity 
         style={[styles.button, isLoginLoading && styles.buttonDisabled]} 
         onPress={handleLogin}
@@ -140,16 +170,20 @@ const LoginScreen = ({ navigation }) => {
       >
         <Text style={[styles.linkText, { color: theme.colors.primary }]}>Forgot Password?</Text>
       </TouchableOpacity>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: theme.colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
     justifyContent: 'center',
     padding: theme.spacing.l,
-    backgroundColor: theme.colors.background,
   },
   title: {
     ...theme.typography.h1,
@@ -164,6 +198,23 @@ const getStyles = (theme) => StyleSheet.create({
     fontSize: 16,
     backgroundColor: theme.colors.surface,
     color: theme.colors.text,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderRadius: theme.borderRadius.m,
+    marginBottom: theme.spacing.l,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.m,
+  },
+  passwordInput: {
+    flex: 1,
+    paddingVertical: theme.spacing.m,
+    fontSize: 16,
+    color: theme.colors.text,
+  },
+  eyeIcon: {
+    padding: 4,
   },
   button: {
     backgroundColor: theme.colors.primary,

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import Toast from 'react-native-toast-message';
 import client from '../api/client';
 import { useTheme } from '../context/ThemeContext';
@@ -42,7 +42,8 @@ const JoinFarmScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled" bounces={false}>
       <Text style={styles.title}>Join a Farm</Text>
       <Text style={styles.subtitle}>Enter the invitation code provided by your farm admin.</Text>
       
@@ -70,16 +71,20 @@ const JoinFarmScreen = ({ navigation }) => {
       <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
         <Text style={styles.backButtonText}>Back</Text>
       </TouchableOpacity>
-    </View>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 };
 
 const getStyles = (theme) => StyleSheet.create({
   container: {
     flex: 1,
-    padding: theme.spacing.l,
-    justifyContent: 'center',
     backgroundColor: theme.colors.background,
+  },
+  scrollContent: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: theme.spacing.l,
   },
   title: {
     ...theme.typography.h1,

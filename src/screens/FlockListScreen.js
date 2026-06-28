@@ -1,21 +1,30 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useContext } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import client from '../api/client';
 import { useNavigation } from '@react-navigation/native';
 import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { AuthContext } from '../context/AuthContext';
+
+const TABS = ['Active', 'History'];
 
 const FlockListScreen = () => {
   const [flocks, setFlocks] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState('Active');
   const navigation = useNavigation();
   const { theme } = useTheme();
+  const { userInfo } = useContext(AuthContext);
   const styles = getStyles(theme);
 
-  const fetchFlocks = async () => {
+  const isManager = userInfo?.role === 'superuser' || userInfo?.role === 'manager';
+
+  const fetchFlocks = async (tab) => {
+    setLoading(true);
     try {
-      const response = await client.get('/flocks/');
+      const status = tab === 'Active' ? 'active' : 'closed';
+      const response = await client.get(`/flocks/?status=${status}`);
       setFlocks(response.data);
     } catch (error) {
       console.error(error);
@@ -26,19 +35,15 @@ const FlockListScreen = () => {
 
   useEffect(() => {
     const unsubscribe = navigation.addListener('focus', () => {
-      fetchFlocks();
+      fetchFlocks(activeTab);
     });
-
     return unsubscribe;
-  }, [navigation]);
+  }, [navigation, activeTab]);
 
-  if (loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
-      </View>
-    );
-  }
+  const switchTab = (tab) => {
+    setActiveTab(tab);
+    fetchFlocks(tab);
+  };
 
   const renderItem = ({ item }) => (
     <TouchableOpacity
@@ -50,7 +55,14 @@ const FlockListScreen = () => {
         <MaterialCommunityIcons name="bird" size={32} color={theme.colors.primary} />
       </View>
       <View style={styles.cardContent}>
-        <Text style={styles.cardTitle}>{item.name}</Text>
+        <View style={styles.cardTitleRow}>
+          <Text style={styles.cardTitle}>{item.name}</Text>
+          {item.status === 'closed' && (
+            <View style={styles.closedBadge}>
+              <Text style={styles.closedBadgeText}>CLOSED</Text>
+            </View>
+          )}
+        </View>
         <View style={styles.cardRow}>
           <MaterialCommunityIcons name="dna" size={16} color={theme.colors.textSecondary} />
           <Text style={styles.cardDetail}> {item.breed}</Text>
@@ -59,6 +71,12 @@ const FlockListScreen = () => {
           <MaterialCommunityIcons name="counter" size={16} color={theme.colors.textSecondary} />
           <Text style={styles.cardDetail}> {item.current_quantity} birds</Text>
         </View>
+        {item.status === 'closed' && item.closure_reason && (
+          <View style={styles.cardRow}>
+            <MaterialCommunityIcons name="tag-outline" size={16} color={theme.colors.textSecondary} />
+            <Text style={styles.cardDetail}> {item.closure_reason}</Text>
+          </View>
+        )}
       </View>
       <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textSecondary} />
     </TouchableOpacity>
@@ -67,29 +85,68 @@ const FlockListScreen = () => {
   return (
     <View style={styles.mainContainer}>
       <CustomHeader title="My Flocks" navigation={navigation} showBack={true} />
-      <View style={styles.container}>
-        <TouchableOpacity 
-          style={styles.addButton} 
-          onPress={() => navigation.navigate('AddFlock')}
-          activeOpacity={0.8}
-        >
-          <MaterialCommunityIcons name="plus-circle" size={24} color="#fff" />
-          <Text style={styles.addButtonText}>Add New Flock</Text>
-        </TouchableOpacity>
 
-        <FlatList
-          data={flocks}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <MaterialCommunityIcons name="barn" size={64} color={theme.colors.textSecondary} />
-              <Text style={styles.emptyText}>No flocks found. Add one to get started!</Text>
-            </View>
-          }
-        />
+      {/* Tab bar */}
+      <View style={styles.tabBar}>
+        {TABS.map(tab => {
+          const active = activeTab === tab;
+          return (
+            <TouchableOpacity key={tab} style={styles.tabItem} onPress={() => switchTab(tab)}>
+              <Text style={[styles.tabText, active && styles.tabTextActive]}>{tab}</Text>
+              {active && <View style={styles.tabUnderline} />}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+
+      <View style={styles.container}>
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.primary} />
+          </View>
+        ) : (
+          <FlatList
+            data={flocks}
+            keyExtractor={(item) => item.id.toString()}
+            renderItem={renderItem}
+            contentContainerStyle={styles.listContent}
+            showsVerticalScrollIndicator={false}
+            ListEmptyComponent={
+              <View style={styles.emptyContainer}>
+                <MaterialCommunityIcons
+                  name={activeTab === 'Active' ? 'barn' : 'archive-outline'}
+                  size={64}
+                  color={theme.colors.textSecondary}
+                />
+                <Text style={styles.emptyText}>
+                  {activeTab === 'Active'
+                    ? 'No active flocks. Tap + to start a new cycle!'
+                    : 'No closed cycles yet.'}
+                </Text>
+              </View>
+            }
+          />
+        )}
+
+        {activeTab === 'Active' && isManager && (
+          <TouchableOpacity
+            style={styles.fab}
+            onPress={() => navigation.navigate('AddFlock')}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="plus" size={30} color="#fff" />
+          </TouchableOpacity>
+        )}
+
+        {activeTab === 'History' && (
+          <TouchableOpacity
+            style={[styles.fab, { backgroundColor: theme.colors.secondary }]}
+            onPress={() => navigation.navigate('CycleComparison')}
+            activeOpacity={0.8}
+          >
+            <MaterialCommunityIcons name="chart-bar" size={26} color="#fff" />
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );
@@ -108,30 +165,38 @@ const getStyles = (theme) => StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: theme.colors.background,
   },
-  addButton: {
+  tabBar: {
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.primary,
-    paddingVertical: theme.spacing.m,
-    paddingHorizontal: theme.spacing.l,
-    borderRadius: theme.borderRadius.l,
-    marginBottom: theme.spacing.l,
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
+    backgroundColor: theme.colors.surface,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.border,
   },
-  addButtonText: {
-    ...theme.typography.button,
-    marginLeft: theme.spacing.s,
-    fontSize: 18,
+  tabItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 12,
+    position: 'relative',
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: theme.colors.textSecondary,
+  },
+  tabTextActive: {
+    color: theme.colors.primary,
+  },
+  tabUnderline: {
+    position: 'absolute',
+    bottom: 0,
+    left: '20%',
+    right: '20%',
+    height: 3,
+    borderRadius: 2,
+    backgroundColor: theme.colors.primary,
   },
   listContent: {
-    paddingBottom: theme.spacing.xl,
+    paddingBottom: 80,
   },
   card: {
     flexDirection: 'row',
@@ -152,7 +217,7 @@ const getStyles = (theme) => StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    backgroundColor: `${theme.colors.primary}20`, // 20% opacity
+    backgroundColor: `${theme.colors.primary}20`,
     justifyContent: 'center',
     alignItems: 'center',
     marginRight: theme.spacing.m,
@@ -161,12 +226,28 @@ const getStyles = (theme) => StyleSheet.create({
     flex: 1,
     marginRight: theme.spacing.s,
   },
+  cardTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 4,
+  },
   cardTitle: {
     ...theme.typography.h3,
-    marginBottom: 4,
     color: theme.colors.text,
     fontWeight: 'bold',
     fontSize: 18,
+  },
+  closedBadge: {
+    backgroundColor: '#F4433620',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  closedBadgeText: {
+    fontSize: 10,
+    fontWeight: '800',
+    color: '#F44336',
   },
   cardRow: {
     flexDirection: 'row',
@@ -188,6 +269,22 @@ const getStyles = (theme) => StyleSheet.create({
     ...theme.typography.body,
     marginTop: theme.spacing.m,
     textAlign: 'center',
+  },
+  fab: {
+    position: 'absolute',
+    bottom: 30,
+    right: 30,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: theme.colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 8,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
   },
 });
 

@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch, Alert } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import client from '../api/client';
 import { useTheme } from '../context/ThemeContext';
 import CustomHeader from '../components/CustomHeader';
 import Toast from 'react-native-toast-message';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const EditUserScreen = ({ route, navigation }) => {
   const { user } = route.params;
@@ -197,7 +198,8 @@ const EditUserScreen = ({ route, navigation }) => {
   return (
     <View style={{ flex: 1 }}>
       <CustomHeader title="Edit User" navigation={navigation} showBack={true} />
-      <ScrollView contentContainerStyle={styles.container} nestedScrollEnabled={true}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      <ScrollView contentContainerStyle={styles.container} nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Username</Text>
         <TextInput
           style={styles.input}
@@ -229,6 +231,12 @@ const EditUserScreen = ({ route, navigation }) => {
             style={styles.dropdown}
             dropDownContainerStyle={styles.dropdownContainer}
             textStyle={{ color: theme.colors.text }}
+            ArrowDownIconComponent={() => (
+              <MaterialCommunityIcons name="chevron-down" size={20} color={theme.colors.text} />
+            )}
+            ArrowUpIconComponent={() => (
+              <MaterialCommunityIcons name="chevron-up" size={20} color={theme.colors.text} />
+            )}
           />
         </View>
 
@@ -262,6 +270,7 @@ const EditUserScreen = ({ route, navigation }) => {
           <Text style={styles.buttonText}>Delete User</Text>
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
