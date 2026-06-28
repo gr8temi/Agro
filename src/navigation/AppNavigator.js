@@ -13,6 +13,12 @@ import AddFeedLogScreen from '../screens/AddFeedLogScreen';
 import AddHealthLogScreen from '../screens/AddHealthLogScreen';
 import AddEggCollectionScreen from '../screens/AddEggCollectionScreen';
 import AddTransactionScreen from '../screens/AddTransactionScreen';
+import DailyReportFormScreen from '../screens/reports/DailyReportFormScreen';
+import ReportSettingsScreen from '../screens/reports/ReportSettingsScreen';
+import QuestionManagerScreen from '../screens/reports/QuestionManagerScreen';
+import ReportListScreen from '../screens/reports/ReportListScreen';
+import ReportDetailScreen from '../screens/reports/ReportDetailScreen';
+import ReportsScreen from '../screens/reports/ReportsScreen';
 
 import UserListScreen from '../screens/UserListScreen';
 import AddUserScreen from '../screens/AddUserScreen';
@@ -29,6 +35,13 @@ import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
 import PasswordResetConfirmScreen from '../screens/PasswordResetConfirmScreen';
 import TransferOwnershipScreen from '../screens/TransferOwnershipScreen';
+import CloseCycleScreen from '../screens/CloseCycleScreen';
+import CycleComparisonScreen from '../screens/CycleComparisonScreen';
+import AllTransactionsScreen from '../screens/AllTransactionsScreen';
+import FarmProfileScreen from '../screens/FarmProfileScreen';
+import SalesInvoiceScreen from '../screens/SalesInvoiceScreen';
+import InvoiceListScreen from '../screens/InvoiceListScreen';
+import InvoiceDetailScreen from '../screens/InvoiceDetailScreen';
 
 const Stack = createNativeStackNavigator();
 
@@ -75,6 +88,7 @@ const AppNavigator = () => {
                 <Stack.Screen name="AddHealthLog" component={AddHealthLogScreen} />
                 <Stack.Screen name="AddEggCollection" component={AddEggCollectionScreen} />
                 <Stack.Screen name="AddTransaction" component={AddTransactionScreen} />
+                <Stack.Screen name="AllTransactions" component={AllTransactionsScreen} />
                 <Stack.Screen name="UserList" component={UserListScreen} />
                 <Stack.Screen name="AddUser" component={AddUserScreen} />
                 <Stack.Screen name="EditUser" component={EditUserScreen} />
@@ -82,6 +96,18 @@ const AppNavigator = () => {
                 <Stack.Screen name="Settings" component={SettingsScreen} />
                 <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
                 <Stack.Screen name="TransferOwnership" component={TransferOwnershipScreen} />
+                <Stack.Screen name="CloseCycle" component={CloseCycleScreen} />
+                <Stack.Screen name="CycleComparison" component={CycleComparisonScreen} />
+                <Stack.Screen name="FarmProfile" component={FarmProfileScreen} />
+                <Stack.Screen name="SalesInvoice" component={SalesInvoiceScreen} />
+                <Stack.Screen name="InvoiceList" component={InvoiceListScreen} />
+                <Stack.Screen name="InvoiceDetail" component={InvoiceDetailScreen} />
+                <Stack.Screen name="DailyReportForm" component={DailyReportFormScreen} />
+                <Stack.Screen name="Reports" component={ReportsScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="ReportSettings" component={ReportSettingsScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="QuestionManager" component={QuestionManagerScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="ReportList" component={ReportListScreen} options={{ headerShown: false }} />
+                <Stack.Screen name="ReportDetail" component={ReportDetailScreen} options={{ headerShown: false }} />
               </>
             )}
           </Stack.Group>

@@ -1,4 +1,4 @@
-# Poultry Farm Manager - Mobile App
+# CluckOps - Mobile App
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 

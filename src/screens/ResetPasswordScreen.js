@@ -4,9 +4,13 @@ import { useTheme } from '../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 import client from '../api/client';
 
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+
 const ResetPasswordScreen = ({ navigation, route }) => {
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isNewPasswordVisible, setIsNewPasswordVisible] = useState(false);
+  const [isConfirmPasswordVisible, setIsConfirmPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const { theme } = useTheme();
   const styles = getStyles(theme);
@@ -99,25 +103,49 @@ const ResetPasswordScreen = ({ navigation, route }) => {
             : 'Enter your new password'}
         </Text>
 
-        <TextInput
-          style={styles.input}
-          placeholder="New Password"
-          placeholderTextColor={theme.colors.textSecondary}
-          value={newPassword}
-          onChangeText={setNewPassword}
-          secureTextEntry
-          autoCapitalize="none"
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="New Password"
+            placeholderTextColor={theme.colors.textSecondary}
+            value={newPassword}
+            onChangeText={setNewPassword}
+            secureTextEntry={!isNewPasswordVisible}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity 
+            onPress={() => setIsNewPasswordVisible(!isNewPasswordVisible)}
+            style={styles.eyeIcon}
+          >
+            <MaterialCommunityIcons 
+              name={isNewPasswordVisible ? "eye" : "eye-off"} 
+              size={24} 
+              color={theme.colors.textSecondary} 
+            />
+          </TouchableOpacity>
+        </View>
 
-        <TextInput
-          style={styles.input}
-          placeholder="Confirm Password"
-          placeholderTextColor={theme.colors.textSecondary}
-          value={confirmPassword}
-          onChangeText={setConfirmPassword}
-          secureTextEntry
-          autoCapitalize="none"
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            placeholder="Confirm Password"
+            placeholderTextColor={theme.colors.textSecondary}
+            value={confirmPassword}
+            onChangeText={setConfirmPassword}
+            secureTextEntry={!isConfirmPasswordVisible}
+            autoCapitalize="none"
+          />
+          <TouchableOpacity 
+            onPress={() => setIsConfirmPasswordVisible(!isConfirmPasswordVisible)}
+            style={styles.eyeIcon}
+          >
+            <MaterialCommunityIcons 
+              name={isConfirmPasswordVisible ? "eye" : "eye-off"} 
+              size={24} 
+              color={theme.colors.textSecondary} 
+            />
+          </TouchableOpacity>
+        </View>
 
         <TouchableOpacity 
           style={[styles.button, isLoading && styles.buttonDisabled]} 
@@ -168,6 +196,25 @@ const getStyles = (theme) => StyleSheet.create({
     color: theme.colors.text,
     borderWidth: 1,
     borderColor: theme.colors.border,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.m,
+    marginBottom: theme.spacing.m,
+    backgroundColor: theme.colors.surface,
+    paddingRight: theme.spacing.m,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: theme.spacing.m,
+    fontSize: 16,
+    color: theme.colors.text,
+  },
+  eyeIcon: {
+    padding: 4,
   },
   button: {
     backgroundColor: theme.colors.primary,

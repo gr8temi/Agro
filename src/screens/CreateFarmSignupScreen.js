@@ -1,19 +1,36 @@
-import React, { useState, useContext } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView } from 'react-native';
+import React, { useState, useEffect, useContext } from 'react';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
 import { useTheme } from '../context/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
+import client from '../api/client';
+import CurrencyPicker from '../components/CurrencyPicker';
+import { getCurrencySymbol } from '../utils/currency';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const CreateFarmSignupScreen = ({ navigation }) => {
   const [farmName, setFarmName] = useState('');
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  
+  const [baseCurrency, setBaseCurrency] = useState('NGN');
+  const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
+  const [currencies, setCurrencies] = useState([]);
+
   const { theme } = useTheme();
   const styles = getStyles(theme);
   const { registerOwner } = useContext(AuthContext);
+
+  useEffect(() => {
+    client.get('/currencies/')
+      .then(res => {
+        const list = res.data?.currencies || res.data || [];
+        setCurrencies(list);
+      })
+      .catch(() => {});
+  }, []);
 
   const handleSignup = async () => {
     if (!farmName || !username || !password) {
@@ -27,7 +44,7 @@ const CreateFarmSignupScreen = ({ navigation }) => {
 
     setIsLoading(true);
     try {
-      await registerOwner(username, email, password, farmName);
+      await registerOwner(username, email, password, farmName, baseCurrency);
       // AuthContext will handle state update and navigation should happen automatically via AppNavigator
     } catch (error) {
       console.error(error);
@@ -42,8 +59,8 @@ const CreateFarmSignupScreen = ({ navigation }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scrollContent}>
+    <KeyboardAvoidingView style={styles.container} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
         <Text style={styles.title}>Create Your Farm</Text>
         <Text style={styles.subtitle}>Sign up and start managing your poultry farm.</Text>
 
@@ -56,6 +73,19 @@ const CreateFarmSignupScreen = ({ navigation }) => {
             value={farmName}
             onChangeText={setFarmName}
           />
+
+          <Text style={styles.label}>Farm Currency *</Text>
+          <TouchableOpacity
+            style={styles.currencySelector}
+            onPress={() => setCurrencyPickerVisible(true)}
+          >
+            <View style={styles.currencySelectorLeft}>
+              <Text style={styles.currencySymbol}>{getCurrencySymbol(baseCurrency)}</Text>
+              <Text style={styles.currencyCode}>{baseCurrency}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-down" size={20} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
+          <Text style={styles.currencyHint}>This cannot be changed after farm creation.</Text>
 
           <Text style={styles.label}>Username *</Text>
           <TextInput
@@ -79,14 +109,26 @@ const CreateFarmSignupScreen = ({ navigation }) => {
           />
 
           <Text style={styles.label}>Password *</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Create a password"
-            placeholderTextColor={theme.colors.textSecondary}
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-          />
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Create a password"
+              placeholderTextColor={theme.colors.textSecondary}
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!isPasswordVisible}
+            />
+            <TouchableOpacity 
+              onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+              style={styles.eyeIcon}
+            >
+              <MaterialCommunityIcons 
+                name={isPasswordVisible ? "eye" : "eye-off"} 
+                size={24} 
+                color={theme.colors.textSecondary} 
+              />
+            </TouchableOpacity>
+          </View>
 
           <TouchableOpacity 
             style={styles.button} 
@@ -105,7 +147,15 @@ const CreateFarmSignupScreen = ({ navigation }) => {
           <Text style={styles.backButtonText}>Back to Welcome</Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+
+      <CurrencyPicker
+        visible={currencyPickerVisible}
+        onClose={() => setCurrencyPickerVisible(false)}
+        onSelect={setBaseCurrency}
+        selectedCurrency={baseCurrency}
+        currencies={currencies}
+      />
+    </KeyboardAvoidingView>
   );
 };
 
@@ -146,6 +196,57 @@ const getStyles = (theme) => StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     color: theme.colors.text,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: theme.colors.surface,
+    borderRadius: theme.borderRadius.m,
+    marginBottom: theme.spacing.m,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    paddingRight: theme.spacing.m,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: theme.spacing.m,
+    color: theme.colors.text,
+    // Remove individual border and margin as container handles it
+  },
+  eyeIcon: {
+    padding: 4,
+  },
+  currencySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: theme.colors.surface,
+    padding: theme.spacing.m,
+    borderRadius: theme.borderRadius.m,
+    marginBottom: theme.spacing.xs,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  currencySelectorLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  currencySymbol: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: theme.colors.primary,
+  },
+  currencyCode: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: theme.colors.text,
+  },
+  currencyHint: {
+    fontSize: 11,
+    color: theme.colors.textSecondary,
+    marginBottom: theme.spacing.m,
+    marginLeft: theme.spacing.xs,
   },
   button: {
     backgroundColor: theme.colors.primary,

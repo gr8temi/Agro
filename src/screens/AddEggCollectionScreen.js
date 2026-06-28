@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, Button, StyleSheet, ScrollView, Platform, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, Button, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal, KeyboardAvoidingView } from 'react-native';
 import client from '../api/client';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -19,7 +19,9 @@ const AddEggCollectionScreen = () => {
 
   const onChangeDate = (event, selectedDate) => {
     const currentDate = selectedDate || date;
-    setShowDatePicker(Platform.OS === 'ios');
+    if (Platform.OS === 'android') {
+        setShowDatePicker(false);
+    }
     setDate(currentDate);
   };
 
@@ -41,19 +43,44 @@ const AddEggCollectionScreen = () => {
   return (
     <View style={styles.mainContainer}>
       <CustomHeader title="Record Eggs" navigation={navigation} showBack={true} />
-      <ScrollView contentContainerStyle={styles.container}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Date</Text>
         <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateInput}>
           <Text style={styles.dateText}>{date.toISOString().split('T')[0]}</Text>
         </TouchableOpacity>
         {showDatePicker && (
-          <DateTimePicker
-            testID="dateTimePicker"
-            value={date}
-            mode="date"
-            display="default"
-            onChange={onChangeDate}
-          />
+          Platform.OS === 'ios' ? (
+              <Modal visible={true} transparent={true} animationType="slide">
+                  <View style={styles.iosModalOverlay}>
+                      <View style={[styles.iosDatePickerContainer, { backgroundColor: theme.colors.surface }]}>
+                          <View style={styles.iosHeader}>
+                              <TouchableOpacity onPress={() => setShowDatePicker(false)}>
+                                  <Text style={[styles.iosDoneText, { color: theme.colors.primary }]}>Done</Text>
+                              </TouchableOpacity>
+                          </View>
+                          <DateTimePicker
+                            testID="dateTimePicker"
+                            value={date}
+                            mode="date"
+                            display="spinner"
+                            maximumDate={new Date()}
+                            textColor={theme.colors.text}
+                            onChange={onChangeDate}
+                          />
+                      </View>
+                  </View>
+              </Modal>
+          ) : (
+            <DateTimePicker
+              testID="dateTimePicker"
+              value={date}
+              mode="date"
+              display="default"
+              maximumDate={new Date()}
+              onChange={onChangeDate}
+            />
+          )
         )}
 
         <Text style={styles.label}>Quantity Collected</Text>
@@ -78,6 +105,7 @@ const AddEggCollectionScreen = () => {
           <Text style={styles.buttonText}>Record Collection</Text>
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -127,6 +155,28 @@ const getStyles = (theme) => StyleSheet.create({
   buttonText: {
     ...theme.typography.button,
   },
+  // iOS DatePicker Styles
+  iosModalOverlay: {
+      flex: 1,
+      justifyContent: 'flex-end',
+      backgroundColor: 'rgba(0,0,0,0.4)',
+  },
+  iosDatePickerContainer: {
+      paddingBottom: 20,
+      paddingTop: 10,
+  },
+  iosHeader: {
+      flexDirection: 'row',
+      justifyContent: 'flex-end',
+      paddingHorizontal: 15,
+      paddingBottom: 10,
+      borderBottomWidth: 1,
+      borderBottomColor: '#eee',
+  },
+  iosDoneText: {
+      fontSize: 18,
+      fontWeight: 'bold',
+  }
 });
 
 export default AddEggCollectionScreen;

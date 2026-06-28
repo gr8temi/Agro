@@ -8,10 +8,11 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as LocalAuthentication from 'expo-local-authentication';
 import client from '../api/client';
 import Toast from 'react-native-toast-message';
+import { getCurrencySymbol } from '../utils/currency';
 
 const SettingsScreen = ({ navigation }) => {
   const { theme, themeMode, setThemeMode } = useTheme();
-  const { userInfo, logout } = useContext(AuthContext);
+  const { userInfo, logout, farmBaseCurrency } = useContext(AuthContext);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
 
@@ -163,6 +164,46 @@ const SettingsScreen = ({ navigation }) => {
           <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textSecondary} />
         </TouchableOpacity>
 
+        {/* Farm Profile - Superuser/Manager only */}
+        {(userInfo?.role === 'superuser' || userInfo?.role === 'manager') && (
+          <>
+            <Text style={[styles.sectionTitle, { color: theme.colors.text, marginTop: 24 }]}>Farm</Text>
+            <TouchableOpacity
+              style={[styles.option, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+              onPress={() => navigation.navigate('FarmProfile')}
+              activeOpacity={0.7}
+            >
+              <View style={styles.optionContent}>
+                <MaterialCommunityIcons name="office-building-cog" size={24} color={theme.colors.text} />
+                <View>
+                  <Text style={[styles.optionLabel, { color: theme.colors.text }]}>Farm Profile</Text>
+                  <Text style={[styles.optionDescription, { color: theme.colors.textSecondary }]}>
+                    Update phone, email, address & payment details
+                  </Text>
+                </View>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={24} color={theme.colors.textSecondary} />
+            </TouchableOpacity>
+          </>
+        )}
+
+        {/* Base Currency - Read-only display */}
+        <Text style={[styles.sectionTitle, { color: theme.colors.text, marginTop: 24 }]}>Farm Currency</Text>
+        <View
+          style={[styles.option, { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }]}
+        >
+          <View style={styles.optionContent}>
+            <MaterialCommunityIcons name="currency-usd" size={24} color={theme.colors.text} />
+            <View>
+              <Text style={[styles.optionLabel, { color: theme.colors.text }]}>Base Currency</Text>
+              <Text style={[styles.optionDescription, { color: theme.colors.textSecondary }]}>
+                {getCurrencySymbol(farmBaseCurrency)} {farmBaseCurrency} — set at farm creation
+              </Text>
+            </View>
+          </View>
+          <MaterialCommunityIcons name="lock-outline" size={20} color={theme.colors.textSecondary} />
+        </View>
+
         {/* Delete Farm - Superuser only */}
         {userInfo?.role === 'superuser' && (
           <>
@@ -186,6 +227,7 @@ const SettingsScreen = ({ navigation }) => {
           </>
         )}
       </ScrollView>
+
     </View>
   );
 };

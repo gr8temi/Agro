@@ -1,15 +1,18 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ScrollView, Switch, Alert, KeyboardAvoidingView, Platform } from 'react-native';
 import Toast from 'react-native-toast-message';
 import DropDownPicker from 'react-native-dropdown-picker';
+import * as Clipboard from 'expo-clipboard';
 import client from '../api/client';
 import { useTheme } from '../context/ThemeContext';
 import CustomHeader from '../components/CustomHeader';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const AddUserScreen = ({ navigation }) => {
   const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [role, setRole] = useState('staff');
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState([
@@ -54,39 +57,51 @@ const AddUserScreen = ({ navigation }) => {
       });
       
       // Show an alert with the credentials
+      const credentialsText = `Username: ${username}\nInvitation Code: ${invitationCode}\nTemporary Password: ${tempPassword}`;
+      
       setTimeout(() => {
-        alert(
-          `User Created Successfully!\n\nUsername: ${username}\nInvitation Code: ${invitationCode}\nTemporary Password: ${tempPassword}\n\nThese details have been emailed to the user.\nView the email at: http://localhost:1080`
+        Alert.alert(
+          'User Created Successfully!',
+          `${credentialsText}\n\nThese details have been emailed to the user.`,
+          [
+            {
+              text: 'Copy Details',
+              onPress: async () => {
+                await Clipboard.setStringAsync(credentialsText);
+                Toast.show({
+                  type: 'success',
+                  text1: 'Copied',
+                  text2: 'Credentials copied to clipboard',
+                  position: 'top',
+                });
+              }
+            },
+            { 
+              text: 'OK', 
+              onPress: () => {} 
+            }
+          ]
         );
       }, 500);
       
       navigation.goBack();
     } catch (error) {
-      console.error(error);
-      let errorMessage = 'Failed to create user.';
-      if (error.response && error.response.data) {
+      let errorMessage = 'Failed to create user. Please try again.';
+      if (error.response?.data) {
         const errorData = error.response.data;
         if (errorData.username) errorMessage = errorData.username[0];
         else if (errorData.email) errorMessage = errorData.email[0];
         else if (errorData.password) errorMessage = errorData.password[0];
-        
-        if (!errorData.username && !errorData.email && !errorData.password) {
-             errorMessage += JSON.stringify(errorData);
-        }
-        Toast.show({
-          type: 'error',
-          text1: 'Error',
-          text2: errorMessage,
-          position: 'top',
-        });
-      } else {
-        Toast.show({
-          type: 'error',
-          text1: 'Error',
-          text2: 'Failed to create user. Please check your connection.',
-          position: 'top',
-        });
+        else if (errorData.detail) errorMessage = errorData.detail;
+      } else if (!error.response) {
+        errorMessage = 'Network error. Please check your connection.';
       }
+      Toast.show({
+        type: 'error',
+        text1: 'Error',
+        text2: errorMessage,
+        position: 'top',
+      });
     }
   };
 
@@ -131,7 +146,8 @@ const AddUserScreen = ({ navigation }) => {
   return (
     <View style={{ flex: 1 }}>
       <CustomHeader title="Add New User" navigation={navigation} showBack={true} />
-      <ScrollView contentContainerStyle={styles.container} nestedScrollEnabled={true}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined} keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}>
+      <ScrollView contentContainerStyle={styles.container} nestedScrollEnabled={true} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Username</Text>
         <TextInput
           style={styles.input}
@@ -154,14 +170,26 @@ const AddUserScreen = ({ navigation }) => {
         />
 
         <Text style={styles.label}>Password</Text>
-        <TextInput
-          style={styles.input}
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-          placeholder="Enter password"
-          placeholderTextColor={theme.colors.textSecondary}
-        />
+        <View style={styles.passwordContainer}>
+          <TextInput
+            style={styles.passwordInput}
+            value={password}
+            onChangeText={setPassword}
+            secureTextEntry={!isPasswordVisible}
+            placeholder="Enter password"
+            placeholderTextColor={theme.colors.textSecondary}
+          />
+          <TouchableOpacity 
+            onPress={() => setIsPasswordVisible(!isPasswordVisible)}
+            style={styles.eyeIcon}
+          >
+            <MaterialCommunityIcons 
+              name={isPasswordVisible ? "eye" : "eye-off"} 
+              size={24} 
+              color={theme.colors.textSecondary} 
+            />
+          </TouchableOpacity>
+        </View>
 
         <Text style={styles.label}>Role</Text>
         <View style={[styles.pickerContainer, { zIndex: 1000 }]}>
@@ -177,6 +205,12 @@ const AddUserScreen = ({ navigation }) => {
             style={styles.dropdown}
             dropDownContainerStyle={styles.dropdownContainer}
             textStyle={{ color: theme.colors.text }}
+            ArrowDownIconComponent={() => (
+              <MaterialCommunityIcons name="chevron-down" size={20} color={theme.colors.text} />
+            )}
+            ArrowUpIconComponent={() => (
+              <MaterialCommunityIcons name="chevron-up" size={20} color={theme.colors.text} />
+            )}
           />
         </View>
 
@@ -206,6 +240,7 @@ const AddUserScreen = ({ navigation }) => {
           <Text style={styles.buttonText}>Create User</Text>
         </TouchableOpacity>
       </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 };
@@ -230,6 +265,25 @@ const getStyles = (theme) => StyleSheet.create({
     marginBottom: theme.spacing.l,
     backgroundColor: theme.colors.surface,
     color: theme.colors.text,
+  },
+  passwordContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.m,
+    marginBottom: theme.spacing.l,
+    backgroundColor: theme.colors.surface,
+    paddingHorizontal: theme.spacing.m,
+  },
+  passwordInput: {
+    flex: 1,
+    padding: theme.spacing.m, // Vertical padding matches normal input
+    // No border here
+    color: theme.colors.text,
+  },
+  eyeIcon: {
+    padding: 4,
   },
   pickerContainer: {
     marginBottom: theme.spacing.l,
