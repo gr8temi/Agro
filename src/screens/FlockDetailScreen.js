@@ -9,6 +9,7 @@ import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { useRequireOnline } from '../context/NetworkContext';
 import { AuthContext } from '../context/AuthContext';
 import { useOutbox } from '../context/OutboxContext';
 import { formatCurrency } from '../utils/currency';
@@ -49,6 +50,7 @@ const FlockDetailScreen = ({ route, navigation }) => {
   const loading = flockQuery.isLoading || healthQuery.isLoading || eggQuery.isLoading;
   const isConverting = displayCurrency !== farmBaseCurrency;
   const styles = getStyles(theme);
+  const requireOnline = useRequireOnline();
 
   const isManager = userInfo?.role === 'superuser' || userInfo?.role === 'manager';
   const canManageFinances = userInfo?.role === 'superuser' || userInfo?.role === 'manager' || userInfo?.permissions?.can_manage_finances;
@@ -69,6 +71,7 @@ const FlockDetailScreen = ({ route, navigation }) => {
   useRefreshOnFocus(refetchAll);
 
   const handleReopen = () => {
+    if (!requireOnline('Reopening a cycle')) return;
     Alert.alert(
       'Reopen Cycle',
       `Reopen "${flock.name}"? This will allow new logs and transactions again.`,
@@ -261,7 +264,7 @@ const FlockDetailScreen = ({ route, navigation }) => {
         <ActionBtn
           icon="archive-outline"
           label="Close Cycle"
-          onPress={() => navigation.navigate('CloseCycle', { flockId: flock.id, flockName: flock.name })}
+          onPress={() => requireOnline('Closing a cycle') && navigation.navigate('CloseCycle', { flockId: flock.id, flockName: flock.name })}
           color="#F44336"
         />
       )}
@@ -279,7 +282,7 @@ const FlockDetailScreen = ({ route, navigation }) => {
           <ActionBtn
             icon="receipt"
             label="Sell"
-            onPress={() => navigation.navigate('SalesInvoice', { flockId: flock.id, flockName: flock.name })}
+            onPress={() => requireOnline('Creating an invoice') && navigation.navigate('SalesInvoice', { flockId: flock.id, flockName: flock.name })}
             color="#4CAF50"
           />
           <TouchableOpacity

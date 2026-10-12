@@ -73,7 +73,14 @@ const LoginScreen = ({ navigation }) => {
       }
       // Otherwise navigation happens automatically via AuthContext
     } catch (error) {
-      if (error.response && error.response.status === 401) {
+      if (!error.response) {
+        Toast.show({
+          type: 'error',
+          text1: 'No connection',
+          text2: 'Logging in needs an internet connection.',
+          position: 'top',
+        });
+      } else if (error.response.status === 401) {
         Toast.show({
           type: 'error',
           text1: 'Login Failed',

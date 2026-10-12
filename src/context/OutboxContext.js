@@ -18,13 +18,19 @@ const RETRY_INTERVAL = 60 * 1000;
 const OutboxContext = createContext(null);
 
 const invalidateFor = (item) => {
-  const flockId = item.payload.flock;
+  const flockId = item.payload.flock ?? item.payload.related_flock;
   if (flockId != null) {
     queryClient.invalidateQueries({ queryKey: ['flock', flockId] });
     queryClient.invalidateQueries({ queryKey: ['flocks'] });
   }
   if (item.type === 'eggCollection') queryClient.invalidateQueries({ queryKey: ['eggCollections', flockId] });
   if (item.type === 'healthLog') queryClient.invalidateQueries({ queryKey: ['healthLogs', flockId] });
+  if (item.type === 'dailyReport') queryClient.invalidateQueries({ queryKey: ['api', '/reports/submissions/'] });
+  if (item.type === 'transaction') {
+    queryClient.invalidateQueries({ queryKey: ['api', '/transactions/'] });
+    queryClient.invalidateQueries({ queryKey: ['api', '/transactions/analytics/'] });
+    queryClient.invalidateQueries({ queryKey: ['api', '/flocks/cycle_comparison/'] });
+  }
 };
 
 export const OutboxProvider = ({ children }) => {
@@ -168,7 +174,8 @@ export const OutboxProvider = ({ children }) => {
 
   const pendingFor = useCallback(
     (type, flockId) => userItems.filter(
-      (i) => i.type === type && i.status === 'pending' && (flockId == null || i.payload.flock === flockId)
+      (i) => i.type === type && i.status === 'pending'
+        && (flockId == null || (i.payload.flock ?? i.payload.related_flock) === flockId)
     ),
     [userItems]
   );

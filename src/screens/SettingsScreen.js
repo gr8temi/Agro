@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Switch, Alert } from 'react-native';
 import { useTheme } from '../context/ThemeContext';
+import { useRequireOnline } from '../context/NetworkContext';
 import { AuthContext } from '../context/AuthContext';
 import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -12,6 +13,7 @@ import { getCurrencySymbol } from '../utils/currency';
 
 const SettingsScreen = ({ navigation }) => {
   const { theme, themeMode, setThemeMode } = useTheme();
+  const requireOnline = useRequireOnline();
   const { userInfo, logout, farmBaseCurrency } = useContext(AuthContext);
   const [biometricsEnabled, setBiometricsEnabled] = useState(false);
   const [biometricsAvailable, setBiometricsAvailable] = useState(false);
@@ -48,6 +50,7 @@ const SettingsScreen = ({ navigation }) => {
   };
 
   const handleDeleteFarm = () => {
+    if (!requireOnline('Deleting the farm')) return;
     Alert.alert(
       'Delete Farm',
       'This will permanently delete your farm and ALL data (users, flocks, logs, transactions). This action cannot be undone!',
@@ -149,7 +152,7 @@ const SettingsScreen = ({ navigation }) => {
         {/* Change Password */}
         <TouchableOpacity
           style={[styles.option, { backgroundColor: theme.colors.surface, marginTop: biometricsAvailable ? 12 : 24, borderColor: theme.colors.border }]}
-          onPress={() => navigation.navigate('ResetPassword', { isFirstLogin: false })}
+          onPress={() => requireOnline('Changing your password') && navigation.navigate('ResetPassword', { isFirstLogin: false })}
           activeOpacity={0.7}
         >
           <View style={styles.optionContent}>

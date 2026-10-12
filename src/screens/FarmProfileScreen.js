@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect, useRef, useContext } from 'react';
 import {
   View, Text, TextInput, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Platform, KeyboardAvoidingView,
@@ -8,6 +8,9 @@ import CustomHeader from '../components/CustomHeader';
 import { useTheme } from '../context/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
 import client from '../api/client';
+import { useQueryClient } from '@tanstack/react-query';
+import { useApiQuery, asList } from '../api/queries';
+import { useRequireOnline } from '../context/NetworkContext';
 import Toast from 'react-native-toast-message';
 
 const FarmProfileScreen = ({ navigation }) => {
@@ -15,8 +18,12 @@ const FarmProfileScreen = ({ navigation }) => {
   const { userInfo, refreshUserData } = useContext(AuthContext);
   const styles = getStyles(theme);
 
-  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const queryClient = useQueryClient();
+  const requireOnline = useRequireOnline();
+  const farmsQuery = useApiQuery('/farms/');
+  const loading = farmsQuery.isLoading;
+  const populated = useRef(false);
   const [farmId, setFarmId] = useState(null);
 
   const [farmName, setFarmName] = useState('');
@@ -29,35 +36,31 @@ const FarmProfileScreen = ({ navigation }) => {
   const [accountNumber, setAccountNumber] = useState('');
   const [sortCode, setSortCode] = useState('');
 
+  // Fill the form once from the (possibly cached) farm, without overwriting edits.
   useEffect(() => {
-    const fetchFarm = async () => {
-      try {
-        const res = await client.get('/farms/');
-        const farms = Array.isArray(res.data) ? res.data : (res.data.results || []);
-        if (farms.length > 0) {
-          const farm = farms[0];
-          setFarmId(farm.id);
-          setFarmName(farm.name || '');
-          setPhone(farm.phone || '');
-          setEmail(farm.email || '');
-          setAddress(farm.address || '');
-          const pd = farm.payment_details || {};
-          setBankName(pd.bank_name || '');
-          setAccountName(pd.account_name || '');
-          setAccountNumber(pd.account_number || '');
-          setSortCode(pd.sort_code || '');
-        }
-      } catch (err) {
-        console.error(err);
-        Toast.show({ type: 'error', text1: 'Failed to load farm info', position: 'top' });
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchFarm();
-  }, []);
+    const farm = asList(farmsQuery.data)[0];
+    if (!farm || populated.current) return;
+    populated.current = true;
+    setFarmId(farm.id);
+    setFarmName(farm.name || '');
+    setPhone(farm.phone || '');
+    setEmail(farm.email || '');
+    setAddress(farm.address || '');
+    const pd = farm.payment_details || {};
+    setBankName(pd.bank_name || '');
+    setAccountName(pd.account_name || '');
+    setAccountNumber(pd.account_number || '');
+    setSortCode(pd.sort_code || '');
+  }, [farmsQuery.data]);
+
+  useEffect(() => {
+    if (farmsQuery.isError && !farmsQuery.data) {
+      Toast.show({ type: 'error', text1: 'Failed to load farm info', position: 'top' });
+    }
+  }, [farmsQuery.isError, farmsQuery.data]);
 
   const handleSave = async () => {
+    if (!requireOnline('Saving the farm profile')) return;
     if (!farmName.trim()) {
       Toast.show({ type: 'error', text1: 'Farm name is required', position: 'top' });
       return;
@@ -79,6 +82,7 @@ const FarmProfileScreen = ({ navigation }) => {
       };
       const res = await client.patch(`/farms/${farmId}/`, payload);
       refreshUserData({ farm: { ...userInfo.farm, name: res.data.name } });
+      queryClient.invalidateQueries({ queryKey: ['api', '/farms/'] });
       Toast.show({ type: 'success', text1: 'Farm profile updated', position: 'top' });
       navigation.goBack();
     } catch (err) {

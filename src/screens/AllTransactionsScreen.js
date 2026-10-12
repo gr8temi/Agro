@@ -1,7 +1,9 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useContext, useRef } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import client from '../api/client';
+import { useApiQuery, asList } from '../api/queries';
+import { useRequireOnline } from '../context/NetworkContext';
 import { useTheme } from '../context/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
 import CustomHeader from '../components/CustomHeader';
@@ -11,14 +13,13 @@ import Toast from 'react-native-toast-message';
 
 const AllTransactionsScreen = ({ navigation, route }) => {
   const { selectedCycle, cycleName } = route.params || {};
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { theme } = useTheme();
   const { userInfo, displayCurrency, farmBaseCurrency, financeCategories } = useContext(AuthContext);
   const isManager = userInfo?.role === 'superuser' || userInfo?.role === 'manager';
   const isConverting = displayCurrency !== farmBaseCurrency;
   const swipeableRefs = useRef({});
   const styles = getStyles(theme);
+  const requireOnline = useRequireOnline();
 
   const getCategoryLabel = (key) => {
     const all = [...(financeCategories.expense || []), ...(financeCategories.income || [])];
@@ -26,27 +27,14 @@ const AllTransactionsScreen = ({ navigation, route }) => {
     return found ? found.label : key?.charAt(0).toUpperCase() + key?.slice(1).replace('_', ' ') || key;
   };
 
-  const fetchTransactions = async () => {
-    try {
-      const params = {};
-      if (displayCurrency !== farmBaseCurrency) params.currency = displayCurrency;
-      if (selectedCycle) params.related_flock = selectedCycle;
-      const response = await client.get('/transactions/', { params });
-      const data = Array.isArray(response.data) ? response.data : (response.data.results || []);
-      const sorted = [...data].sort((a, b) => new Date(b.date) - new Date(a.date));
-      setTransactions(sorted);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    fetchTransactions();
-  }, []);
+  const params = {};
+  if (isConverting) params.currency = displayCurrency;
+  if (selectedCycle) params.related_flock = selectedCycle;
+  const { data, isLoading: loading, refetch: fetchTransactions } = useApiQuery('/transactions/', params);
+  const transactions = [...asList(data)].sort((a, b) => new Date(b.date) - new Date(a.date));
 
   const handleDelete = (transaction) => {
+    if (!requireOnline('Deleting a transaction')) return;
     Alert.alert(
       'Delete Transaction',
       `Delete this ${transaction.type} of ${formatCurrency(parseFloat(transaction.amount), displayCurrency)}?`,

@@ -1,4 +1,5 @@
-import React, { createContext, useState, useEffect, useContext } from 'react';
+import React, { createContext, useState, useEffect, useContext, useCallback } from 'react';
+import { Alert } from 'react-native';
 import NetInfo from '@react-native-community/netinfo';
 
 export const NetworkContext = createContext({ isOnline: true });
@@ -25,3 +26,14 @@ export const NetworkProvider = ({ children }) => {
 };
 
 export const useNetwork = () => useContext(NetworkContext);
+
+// For actions the server has to do right away (invoices, closing cycles, user changes).
+// Returns a check that shows an explanation and returns false while offline.
+export const useRequireOnline = () => {
+  const { isOnline } = useNetwork();
+  return useCallback((action = 'This action') => {
+    if (isOnline) return true;
+    Alert.alert("You're offline", `${action} needs an internet connection. Please try again when you're back online.`);
+    return false;
+  }, [isOnline]);
+};

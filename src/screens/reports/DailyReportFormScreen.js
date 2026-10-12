@@ -2,7 +2,7 @@ import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Platform, ActivityIndicator, Modal, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import { useSubmitEntry } from '../../context/OutboxContext';
+import { useOutbox, useSubmitEntry } from '../../context/OutboxContext';
 import { toLocalDateString } from '../../utils/date';
 import { useReportConfig } from '../../api/queries';
 import { ThemeContext } from '../../context/ThemeContext';
@@ -22,6 +22,7 @@ const DailyReportFormScreen = ({ navigation }) => {
   const offlineWithoutConfig = fetchStatus === 'paused' && !config;
   const [answers, setAnswers] = useState({});
   const submitEntry = useSubmitEntry('dailyReport', 'Submission Failed');
+  const { pendingFor } = useOutbox();
   const [submitting, setSubmitting] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(null);
 
@@ -46,10 +47,15 @@ const DailyReportFormScreen = ({ navigation }) => {
 
   const handleSubmit = async () => {
     if (!config) return;
+    const today = toLocalDateString();
+    if (pendingFor('dailyReport').some((i) => i.payload.reference_date === today)) {
+        Alert.alert('Already saved', "Today's report is saved on this phone and will sync when you're back online.");
+        return;
+    }
     setSubmitting(true);
     
     const payload = {
-        reference_date: toLocalDateString(),
+        reference_date: today,
         answers: Object.values(answers).map(a => ({
             question_id: a.question_id,
             answer_text: a.answer_text,

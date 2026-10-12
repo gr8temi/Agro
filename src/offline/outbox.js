@@ -20,6 +20,12 @@ export const OUTBOX_TYPES = {
     icon: 'medical-bag',
     summary: (p) => `${p.log_type}${p.affected_birds ? ` (${p.affected_birds} birds)` : ''} · ${p.date}`,
   },
+  transaction: {
+    label: 'Transaction',
+    url: '/transactions/',
+    icon: 'cash-multiple',
+    summary: (p) => `${p.type === 'income' ? 'Income' : 'Expense'} ${p.amount}${p.currency ? ` ${p.currency}` : ''} · ${p.category} · ${p.date}`,
+  },
   dailyReport: {
     label: 'Daily report',
     url: '/reports/submissions/',

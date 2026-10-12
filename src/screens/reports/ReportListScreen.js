@@ -1,36 +1,17 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useContext } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import reportsApi from '../../api/reports';
+import { useApiQuery, asList } from '../../api/queries';
 import { ThemeContext } from '../../context/ThemeContext';
-import { useIsFocused } from '@react-navigation/native';
+import { useRefreshOnFocus } from '../../hooks/useRefreshOnFocus';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const ReportListScreen = ({ navigation }) => {
   const { theme } = useContext(ThemeContext);
   const colors = theme.colors;
-  const [reports, setReports] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const isFocused = useIsFocused();
-
-  useEffect(() => {
-    if (isFocused) {
-        fetchReports();
-    }
-  }, [isFocused]);
-
-  const fetchReports = async () => {
-    try {
-      const result = await reportsApi.getSubmissions();
-      if (result.status === 200) {
-        setReports(result.data.results || result.data);
-      }
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data, isLoading: loading, refetch: fetchReports } = useApiQuery('/reports/submissions/');
+  const reports = asList(data);
+  useRefreshOnFocus(fetchReports);
 
   const renderItem = ({ item }) => (
     <TouchableOpacity 

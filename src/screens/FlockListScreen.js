@@ -6,6 +6,7 @@ import { useNavigation } from '@react-navigation/native';
 import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { useRequireOnline } from '../context/NetworkContext';
 import { AuthContext } from '../context/AuthContext';
 
 const TABS = ['Active', 'History'];
@@ -19,6 +20,7 @@ const FlockListScreen = () => {
   const { theme } = useTheme();
   const { userInfo } = useContext(AuthContext);
   const styles = getStyles(theme);
+  const requireOnline = useRequireOnline();
 
   const isManager = userInfo?.role === 'superuser' || userInfo?.role === 'manager';
 
@@ -116,7 +118,7 @@ const FlockListScreen = () => {
         {activeTab === 'Active' && isManager && (
           <TouchableOpacity
             style={styles.fab}
-            onPress={() => navigation.navigate('AddFlock')}
+            onPress={() => requireOnline('Adding a flock') && navigation.navigate('AddFlock')}
             activeOpacity={0.8}
           >
             <MaterialCommunityIcons name="plus" size={30} color="#fff" />

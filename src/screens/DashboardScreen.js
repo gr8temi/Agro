@@ -2,6 +2,7 @@ import React, { useContext, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, Alert } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { useRequireOnline } from '../context/NetworkContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TourGuideZone, useTourGuideController } from 'rn-tourguide';
@@ -24,6 +25,7 @@ const DashboardScreen = ({ navigation }) => {
   const activeFlockCount = activeFlocks ? activeFlocks.length : null;
   const { pendingCount, failedCount } = useOutbox();
   const unsyncedCount = pendingCount + failedCount;
+  const requireOnline = useRequireOnline();
 
   const handleLogout = () => {
     if (unsyncedCount === 0) {
@@ -102,7 +104,7 @@ const DashboardScreen = ({ navigation }) => {
         <Text style={styles.headerTitle}>Dashboard</Text>
         <View style={styles.headerRight}>
           <TouchableOpacity
-            onPress={() => setCurrencyPickerVisible(true)}
+            onPress={() => requireOnline('Changing the display currency') && setCurrencyPickerVisible(true)}
             style={styles.currencyPill}
           >
             <Text style={styles.currencyPillText}>{getCurrencySymbol(displayCurrency)} {displayCurrency}</Text>

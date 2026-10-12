@@ -11,6 +11,8 @@ import { useTheme } from '../context/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
 import { formatCurrency, getCurrencySymbol } from '../utils/currency';
 import client from '../api/client';
+import { useApiQuery } from '../api/queries';
+import { useNetwork, useRequireOnline } from '../context/NetworkContext';
 import Toast from 'react-native-toast-message';
 
 const FOREST = '#1a3a2a';
@@ -29,26 +31,21 @@ const InvoiceDetailScreen = ({ navigation, route }) => {
   const { invoiceId } = route.params;
   const { theme } = useTheme();
   const { farmBaseCurrency } = useContext(AuthContext);
-  const [invoice, setInvoice] = useState(null);
-  const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
   const styles = getStyles(theme);
+  const { isOnline } = useNetwork();
+  const requireOnline = useRequireOnline();
+  const invoiceQuery = useApiQuery(`/invoices/${invoiceId}/`);
+  const invoice = invoiceQuery.data ?? null;
+  const loading = invoiceQuery.isLoading;
+  const fetchInvoice = invoiceQuery.refetch;
 
-  const fetchInvoice = async () => {
-    try {
-      const res = await client.get(`/invoices/${invoiceId}/`);
-      setInvoice(res.data);
-    } catch (err) {
-      console.error(err);
-      Alert.alert('Error', 'Failed to load invoice.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => { fetchInvoice(); }, [invoiceId]);
+  useEffect(() => {
+    if (invoiceQuery.isError && !invoice) Alert.alert('Error', 'Failed to load invoice.');
+  }, [invoiceQuery.isError, invoice]);
 
   const handleMarkPaid = () => {
+    if (!requireOnline('Marking an invoice as paid')) return;
     Alert.alert('Mark as Paid', 'This will create an income transaction for the invoice total. Continue?', [
       { text: 'Cancel', style: 'cancel' },
       {
@@ -68,6 +65,7 @@ const InvoiceDetailScreen = ({ navigation, route }) => {
   };
 
   const handleCancel = () => {
+    if (!requireOnline('Cancelling an invoice')) return;
     Alert.alert('Cancel Invoice', 'Are you sure you want to cancel this invoice?', [
       { text: 'No', style: 'cancel' },
       {
@@ -244,6 +242,10 @@ const InvoiceDetailScreen = ({ navigation, route }) => {
 
   const markAsSent = async () => {
     if (invoice.status !== 'draft') return;
+    if (!isOnline) {
+      Toast.show({ type: 'info', text1: "Offline: invoice wasn't marked as sent", text2: 'Share it again when online to update its status.', position: 'top' });
+      return;
+    }
     try {
       await client.post(`/invoices/${invoiceId}/mark_sent/`);
       fetchInvoice();
@@ -298,7 +300,20 @@ const InvoiceDetailScreen = ({ navigation, route }) => {
     );
   }
 
-  if (!invoice) return null;
+  if (!invoice) {
+    if (invoiceQuery.fetchStatus !== 'paused') return null;
+    return (
+      <View style={styles.mainContainer}>
+        <CustomHeader title="Invoice" navigation={navigation} showBack />
+        <View style={styles.centered}>
+          <MaterialCommunityIcons name="cloud-off-outline" size={48} color={theme.colors.textSecondary} />
+          <Text style={{ color: theme.colors.textSecondary, marginTop: 12 }}>
+            You're offline. This invoice will load when you reconnect.
+          </Text>
+        </View>
+      </View>
+    );
+  }
 
   const statusCfg = STATUS_CONFIG[invoice.status] || STATUS_CONFIG.draft;
   const currency = farmBaseCurrency;

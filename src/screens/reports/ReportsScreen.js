@@ -4,11 +4,13 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { AuthContext } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useRequireOnline } from '../../context/NetworkContext';
 
 const ReportsScreen = ({ navigation }) => {
   const { userInfo } = useContext(AuthContext);
   const { theme } = useTheme();
   const colors = theme.colors;
+  const requireOnline = useRequireOnline();
 
   const isAdmin =
     userInfo?.role === 'superuser' ||
@@ -75,7 +77,7 @@ const ReportsScreen = ({ navigation }) => {
               subtitle="Enable reporting & manage questions"
               icon="cog-outline"
               color="#9C27B0"
-              onPress={() => navigation.navigate('ReportSettings')}
+              onPress={() => requireOnline('Changing report settings') && navigation.navigate('ReportSettings')}
             />
           </>
         )}

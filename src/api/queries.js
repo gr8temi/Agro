@@ -3,10 +3,11 @@ import client from './client';
 import reportsApi from './reports';
 
 // List endpoints may return a plain array or a paginated { results } object.
-const listData = (res) => {
-  const data = res.data?.results ?? res.data;
-  return Array.isArray(data) ? data : [];
+export const asList = (data) => {
+  const list = data?.results ?? data;
+  return Array.isArray(list) ? list : [];
 };
+const listData = (res) => asList(res.data);
 
 // Only send ?currency= when converting, matching the existing screens.
 const currencyParams = (currency, baseCurrency) =>
@@ -52,4 +53,13 @@ export const useReportConfig = () =>
   useQuery({
     queryKey: queryKeys.reportConfig(),
     queryFn: () => reportsApi.getConfig().then((res) => listData(res)[0] ?? null),
+  });
+
+// Cached GET for screens that don't need a dedicated hook. Cached per URL + params,
+// so invalidating ['api', url] refreshes every variant of that endpoint.
+export const useApiQuery = (url, params = {}, options = {}) =>
+  useQuery({
+    queryKey: ['api', url, params],
+    queryFn: () => client.get(url, { params }).then((res) => res.data),
+    ...options,
   });
