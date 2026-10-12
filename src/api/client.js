@@ -44,8 +44,11 @@ client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    // A 401 on a request sent without a token (e.g. on the signup screens) isn't an
+    // expired session, so don't try to refresh or log out.
+    const sentWithToken = !!originalRequest?.headers?.Authorization;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && sentWithToken && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
