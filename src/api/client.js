@@ -1,7 +1,9 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const BASE_URL = 'https://farm.api.pinowo.com/api';
+// Override in .env.local (e.g. EXPO_PUBLIC_API_URL=http://192.168.1.10:8001/api) to use a
+// local backend. Restart `expo start` after changing it; values are inlined at bundle time.
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://farm.api.pinowo.com/api';
 
 const client = axios.create({
   baseURL: BASE_URL,
