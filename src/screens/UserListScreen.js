@@ -1,35 +1,21 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
-import client from '../api/client';
+import { useApiQuery, asList } from '../api/queries';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { useRequireOnline } from '../context/NetworkContext';
 import { useTheme } from '../context/ThemeContext';
 import { useNavigation } from '@react-navigation/native';
 import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 const UserListScreen = () => {
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
   const navigation = useNavigation();
   const { theme } = useTheme();
   const styles = getStyles(theme);
-
-  const fetchUsers = async () => {
-    try {
-      const response = await client.get('/users/');
-      setUsers(response.data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchUsers();
-    });
-    return unsubscribe;
-  }, [navigation]);
+  const requireOnline = useRequireOnline();
+  const { data, isLoading: loading, refetch } = useApiQuery('/users/');
+  const users = asList(data);
+  useRefreshOnFocus(refetch);
 
   if (loading) {
     return (
@@ -43,7 +29,7 @@ const UserListScreen = () => {
   const renderItem = ({ item }) => (
     <TouchableOpacity 
       style={styles.card} 
-      onPress={() => navigation.navigate('EditUser', { user: item })}
+      onPress={() => requireOnline('Editing a user') && navigation.navigate('EditUser', { user: item })}
       activeOpacity={0.7}
     >
       <View style={styles.cardIconContainer}>
@@ -86,7 +72,7 @@ const UserListScreen = () => {
         {/* FAB */}
         <TouchableOpacity 
           style={styles.fab} 
-          onPress={() => navigation.navigate('AddUser')}
+          onPress={() => requireOnline('Adding a user') && navigation.navigate('AddUser')}
           activeOpacity={0.8}
         >
           <MaterialCommunityIcons name="account-plus" size={30} color="#fff" />

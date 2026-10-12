@@ -1,7 +1,9 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
-const BASE_URL = 'https://farm.api.pinowo.com/api';
+// Override in .env.local (e.g. EXPO_PUBLIC_API_URL=http://192.168.1.10:8001/api) to use a
+// local backend. Restart `expo start` after changing it; values are inlined at bundle time.
+const BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'https://farm.api.pinowo.com/api';
 
 const client = axios.create({
   baseURL: BASE_URL,
@@ -42,8 +44,11 @@ client.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    // A 401 on a request sent without a token (e.g. on the signup screens) isn't an
+    // expired session, so don't try to refresh or log out.
+    const sentWithToken = !!originalRequest?.headers?.Authorization;
 
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && sentWithToken && !originalRequest._retry) {
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -73,9 +78,15 @@ client.interceptors.response.use(
         return client(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError, null);
-        await SecureStore.deleteItemAsync('userToken');
-        await SecureStore.deleteItemAsync('refreshToken');
-        if (_onAuthFailure) _onAuthFailure();
+        // Only end the session when the refresh token is actually rejected (or missing).
+        // Network errors and 5xx keep the session so the user isn't logged out offline.
+        const status = refreshError.response?.status;
+        const noRefreshToken = refreshError.message === 'No refresh token';
+        if (noRefreshToken || status === 401 || status === 403) {
+          await SecureStore.deleteItemAsync('userToken');
+          await SecureStore.deleteItemAsync('refreshToken');
+          if (_onAuthFailure) _onAuthFailure();
+        }
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;

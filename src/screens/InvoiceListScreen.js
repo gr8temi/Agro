@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useContext, useRef } from 'react';
+import React, { useState, useContext, useRef } from 'react';
 import {
   View, Text, StyleSheet, FlatList, ActivityIndicator,
   TouchableOpacity, Alert, ScrollView,
@@ -10,6 +10,9 @@ import { useTheme } from '../context/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
 import { formatCurrency } from '../utils/currency';
 import client from '../api/client';
+import { useApiQuery, asList } from '../api/queries';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { useRequireOnline } from '../context/NetworkContext';
 import Toast from 'react-native-toast-message';
 
 const STATUS_FILTERS = [
@@ -29,8 +32,6 @@ const STATUS_CONFIG = {
 
 const InvoiceListScreen = ({ navigation, route }) => {
   const { selectedCycle, cycleName } = route.params || {};
-  const [invoices, setInvoices] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState(null);
   const { theme } = useTheme();
   const { userInfo, farmBaseCurrency } = useContext(AuthContext);
@@ -39,33 +40,16 @@ const InvoiceListScreen = ({ navigation, route }) => {
 
   const canManage = userInfo?.role === 'superuser' || userInfo?.role === 'manager' || userInfo?.permissions?.can_manage_finances;
 
-  const fetchInvoices = async () => {
-    try {
-      const params = {};
-      if (selectedCycle) params.related_flock = selectedCycle;
-      if (statusFilter) params.status = statusFilter;
-      const res = await client.get('/invoices/', { params });
-      const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
-      const sorted = [...data].sort((a, b) => new Date(b.invoice_date) - new Date(a.invoice_date));
-      setInvoices(sorted);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    setLoading(true);
-    fetchInvoices();
-  }, [statusFilter]);
-
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => fetchInvoices());
-    return unsubscribe;
-  }, [navigation, statusFilter]);
+  const requireOnline = useRequireOnline();
+  const params = {};
+  if (selectedCycle) params.related_flock = selectedCycle;
+  if (statusFilter) params.status = statusFilter;
+  const { data, isLoading: loading, refetch: fetchInvoices } = useApiQuery('/invoices/', params);
+  const invoices = [...asList(data)].sort((a, b) => new Date(b.invoice_date) - new Date(a.invoice_date));
+  useRefreshOnFocus(fetchInvoices);
 
   const handleDelete = (invoice) => {
+    if (!requireOnline('Deleting an invoice')) return;
     if (invoice.status !== 'draft') {
       Alert.alert('Cannot Delete', 'Only draft invoices can be deleted.');
       return;
@@ -191,7 +175,7 @@ const InvoiceListScreen = ({ navigation, route }) => {
       {canManage && (
         <TouchableOpacity
           style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-          onPress={() => navigation.navigate('SalesInvoice', { flockId: selectedCycle, flockName: cycleName })}
+          onPress={() => requireOnline('Creating an invoice') && navigation.navigate('SalesInvoice', { flockId: selectedCycle, flockName: cycleName })}
         >
           <MaterialCommunityIcons name="plus" size={28} color="#fff" />
         </TouchableOpacity>

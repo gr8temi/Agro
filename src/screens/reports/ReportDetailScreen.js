@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import reportsApi from '../../api/reports';
+import { useApiQuery } from '../../api/queries';
 import { ThemeContext } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 
@@ -11,28 +11,11 @@ const ReportDetailScreen = ({ route, navigation }) => {
   const { theme } = useContext(ThemeContext);
   const colors = theme.colors;
 
-  const [report, setReport] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const { data: report = null, isLoading: loading, isError } = useApiQuery(`/reports/submissions/${reportId}/`);
 
   useEffect(() => {
-    fetchReportDetails();
-  }, []);
-
-  const fetchReportDetails = async () => {
-    try {
-      const result = await reportsApi.getSubmission(reportId);
-      if (result.status === 200) {
-        setReport(result.data);
-      } else {
-          Toast.show({ type: 'error', text1: 'Failed to load report' });
-      }
-    } catch (error) {
-      console.error(error);
-      Toast.show({ type: 'error', text1: 'Error loading report' });
-    } finally {
-      setLoading(false);
-    }
-  };
+    if (isError && !report) Toast.show({ type: 'error', text1: 'Error loading report' });
+  }, [isError, report]);
 
   const renderAnswer = (answer, index) => {
     let displayValue = 'N/A';

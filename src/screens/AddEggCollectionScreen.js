@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal, KeyboardAvoidingView } from 'react-native';
-import client from '../api/client';
+import { useSubmitEntry } from '../context/OutboxContext';
+import { toLocalDateString } from '../utils/date';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import CustomHeader from '../components/CustomHeader';
@@ -16,6 +17,7 @@ const AddEggCollectionScreen = () => {
   const { flockId } = route.params;
   const { theme } = useTheme();
   const styles = getStyles(theme);
+  const submitEntry = useSubmitEntry('eggCollection', 'Failed to add egg collection');
 
   const onChangeDate = (event, selectedDate) => {
     const currentDate = selectedDate || date;
@@ -26,18 +28,18 @@ const AddEggCollectionScreen = () => {
   };
 
   const handleSubmit = async () => {
-    try {
-      await client.post('/egg-collections/', {
-        flock: flockId,
-        date: date.toISOString().split('T')[0],
-        quantity_collected: parseInt(quantity),
-        damaged: parseInt(damaged),
-      });
-      navigation.goBack();
-    } catch (error) {
-      console.error(error);
-      alert('Failed to add egg collection');
+    const quantityCollected = parseInt(quantity, 10);
+    if (Number.isNaN(quantityCollected) || quantityCollected < 0) {
+      alert('Please enter the number of eggs collected.');
+      return;
     }
+    const saved = await submitEntry({
+      flock: flockId,
+      date: toLocalDateString(date),
+      quantity_collected: quantityCollected,
+      damaged: parseInt(damaged, 10) || 0,
+    });
+    if (saved) navigation.goBack();
   };
 
   return (
@@ -47,7 +49,7 @@ const AddEggCollectionScreen = () => {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Date</Text>
         <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateInput}>
-          <Text style={styles.dateText}>{date.toISOString().split('T')[0]}</Text>
+          <Text style={styles.dateText}>{toLocalDateString(date)}</Text>
         </TouchableOpacity>
         {showDatePicker && (
           Platform.OS === 'ios' ? (

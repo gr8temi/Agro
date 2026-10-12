@@ -2,7 +2,9 @@ import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Platform, ActivityIndicator, Modal, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import reportsApi from '../../api/reports';
+import { useOutbox, useSubmitEntry } from '../../context/OutboxContext';
+import { toLocalDateString } from '../../utils/date';
+import { useReportConfig } from '../../api/queries';
 import { ThemeContext } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -16,31 +18,19 @@ const DailyReportFormScreen = ({ navigation }) => {
   
   useScreenTour('DailyReportTour');
   
-  const [config, setConfig] = useState(null);
+  const { data: config = null, isLoading: loading, isError, fetchStatus } = useReportConfig();
+  const offlineWithoutConfig = fetchStatus === 'paused' && !config;
   const [answers, setAnswers] = useState({});
-  const [loading, setLoading] = useState(true);
+  const submitEntry = useSubmitEntry('dailyReport', 'Submission Failed');
+  const { pendingFor } = useOutbox();
   const [submitting, setSubmitting] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(null);
 
   useEffect(() => {
-    fetchConfig();
-  }, []);
-
-  const fetchConfig = async () => {
-    try {
-      const result = await reportsApi.getConfig();
-      if ((result.status === 200 || result.status === 201) && result.data.length > 0) {
-        setConfig(result.data[0]);
-      } else if (result.data.results && result.data.results.length > 0) {
-         setConfig(result.data.results[0]);
-      }
-    } catch (error) {
-      console.error(error);
+    if (isError && !config) {
       Toast.show({ type: 'error', text1: 'Error fetching config' });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isError, config]);
 
   const handleInputChange = (questionId, value, type) => {
     setAnswers(prev => ({
@@ -57,10 +47,15 @@ const DailyReportFormScreen = ({ navigation }) => {
 
   const handleSubmit = async () => {
     if (!config) return;
+    const today = toLocalDateString();
+    if (pendingFor('dailyReport').some((i) => i.payload.reference_date === today)) {
+        Alert.alert('Already saved', "Today's report is saved on this phone and will sync when you're back online.");
+        return;
+    }
     setSubmitting(true);
     
     const payload = {
-        reference_date: new Date().toISOString().split('T')[0],
+        reference_date: today,
         answers: Object.values(answers).map(a => ({
             question_id: a.question_id,
             answer_text: a.answer_text,
@@ -69,15 +64,11 @@ const DailyReportFormScreen = ({ navigation }) => {
         }))
     };
 
-    try {
-        await reportsApi.createSubmission(payload);
-        Toast.show({ type: 'success', text1: 'Report Submitted!' });
+    const result = await submitEntry(payload);
+    setSubmitting(false);
+    if (result) {
+        if (!result.queued) Toast.show({ type: 'success', text1: 'Report Submitted!' });
         navigation.goBack();
-    } catch (error) {
-        console.error(error);
-        Toast.show({ type: 'error', text1: 'Submission Failed' });
-    } finally {
-        setSubmitting(false);
     }
   };
 
@@ -149,7 +140,7 @@ const DailyReportFormScreen = ({ navigation }) => {
                                         textColor={colors.text}
                                         onChange={(event, selectedDate) => {
                                             if (selectedDate) {
-                                                const dateString = selectedDate.toISOString().split('T')[0];
+                                                const dateString = toLocalDateString(selectedDate);
                                                 handleInputChange(question.id, dateString, 'date');
                                             }
                                         }}
@@ -165,7 +156,7 @@ const DailyReportFormScreen = ({ navigation }) => {
                             onChange={(event, selectedDate) => {
                                 setShowDatePicker(null);
                                 if (selectedDate) {
-                                    const dateString = selectedDate.toISOString().split('T')[0];
+                                    const dateString = toLocalDateString(selectedDate);
                                     handleInputChange(question.id, dateString, 'date');
                                 }
                             }}
@@ -202,10 +193,14 @@ const DailyReportFormScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {!config ? (
             <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-                <MaterialCommunityIcons name="clipboard-text-off-outline" size={64} color={colors.textSecondary} />
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Report Configured</Text>
+                <MaterialCommunityIcons name={offlineWithoutConfig ? 'cloud-off-outline' : 'clipboard-text-off-outline'} size={64} color={colors.textSecondary} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    {offlineWithoutConfig ? "You're Offline" : 'No Report Configured'}
+                </Text>
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    There are no questions configured for today's report. Please contact your manager.
+                    {offlineWithoutConfig
+                        ? 'The report questions will load when you reconnect.'
+                        : "There are no questions configured for today's report. Please contact your manager."}
                 </Text>
             </View>
         ) : (

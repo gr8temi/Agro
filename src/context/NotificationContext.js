@@ -5,10 +5,11 @@ import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import * as Device from 'expo-device';
 import Constants from 'expo-constants';
+import { isRunningInExpoGo } from 'expo';
 
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
-    shouldShowAlert: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
     shouldShowBanner: true,
@@ -87,7 +88,8 @@ export const NotificationProvider = ({ children }) => {
       });
     }
 
-    if (!Device.isDevice) {
+    // Remote push isn't supported in Expo Go (SDK 53+); requires a development build
+    if (!Device.isDevice || isRunningInExpoGo()) {
       return null;
     }
 

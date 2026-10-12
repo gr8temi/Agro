@@ -1,13 +1,17 @@
-import React, { useEffect, useState, useRef, useContext } from 'react';
+import React, { useCallback, useState, useRef, useContext } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Dimensions, Alert,
 } from 'react-native';
 import client from '../api/client';
+import { useFlock, useHealthLogs, useEggCollections } from '../api/queries';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
+import { useRequireOnline } from '../context/NetworkContext';
 import { AuthContext } from '../context/AuthContext';
+import { useOutbox } from '../context/OutboxContext';
 import { formatCurrency } from '../utils/currency';
 
 const fmt = (amount, currency, isConverting) =>
@@ -18,16 +22,35 @@ const TABS = ['Overview', 'Eggs', 'Health'];
 
 const FlockDetailScreen = ({ route, navigation }) => {
   const { flockId, flockName } = route.params;
-  const [flock, setFlock] = useState(null);
-  const [healthLogs, setHealthLogs] = useState([]);
-  const [eggCollections, setEggCollections] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Overview');
   const pagerRef = useRef(null);
   const { theme } = useTheme();
   const { userInfo, displayCurrency, farmBaseCurrency } = useContext(AuthContext);
+  const flockQuery = useFlock(flockId, displayCurrency, farmBaseCurrency);
+  const healthQuery = useHealthLogs(flockId, displayCurrency, farmBaseCurrency);
+  const eggQuery = useEggCollections(flockId);
+  const { pendingFor } = useOutbox();
+
+  // Entries saved offline but not yet synced. Server rows carry the same client_id
+  // once synced, so skip any the server already has.
+  const withPending = (rows, type, overrides = {}) => {
+    const synced = new Set(rows.map((r) => r.client_id).filter(Boolean));
+    const pending = pendingFor(type, flockId)
+      .filter((i) => !synced.has(i.id))
+      .map((i) => ({ ...i.payload, ...overrides, id: i.id, _pending: true }));
+    return [...pending, ...rows];
+  };
+  const flock = flockQuery.data ?? null;
+  // Pending costs may be in a different currency, so leave them out of totals until synced.
+  const healthLogs = withPending(healthQuery.data ?? [], 'healthLog', { cost: 0 });
+  const eggCollections = withPending(eggQuery.data ?? [], 'eggCollection');
+  const pendingCount = healthLogs.filter((l) => l._pending).length
+    + eggCollections.filter((e) => e._pending).length
+    + pendingFor('feedLog', flockId).length;
+  const loading = flockQuery.isLoading || healthQuery.isLoading || eggQuery.isLoading;
   const isConverting = displayCurrency !== farmBaseCurrency;
   const styles = getStyles(theme);
+  const requireOnline = useRequireOnline();
 
   const isManager = userInfo?.role === 'superuser' || userInfo?.role === 'manager';
   const canManageFinances = userInfo?.role === 'superuser' || userInfo?.role === 'manager' || userInfo?.permissions?.can_manage_finances;
@@ -39,36 +62,16 @@ const FlockDetailScreen = ({ route, navigation }) => {
     pagerRef.current?.scrollTo({ x: index * width, animated: true });
   };
 
-  const fetchAll = async (currency, baseCurrency) => {
-    try {
-      const converting = currency !== baseCurrency;
-      const params = converting ? { currency } : {};
-      const [flockRes, healthRes, eggRes] = await Promise.all([
-        client.get(`/flocks/${flockId}/`, { params }),
-        client.get(`/health-logs/`, { params: { flock: flockId, ...params } }),
-        client.get(`/egg-collections/`, { params: { flock: flockId } }),
-      ]);
-      setFlock(flockRes.data);
-      const hData = healthRes.data?.results ?? healthRes.data ?? [];
-      const eData = eggRes.data?.results ?? eggRes.data ?? [];
-      setHealthLogs(Array.isArray(hData) ? hData : []);
-      setEggCollections(Array.isArray(eData) ? eData : []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const refetchAll = useCallback(() => {
+    flockQuery.refetch();
+    healthQuery.refetch();
+    eggQuery.refetch();
+  }, [flockQuery.refetch, healthQuery.refetch, eggQuery.refetch]);
 
-  useEffect(() => {
-    fetchAll(displayCurrency, farmBaseCurrency);
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchAll(displayCurrency, farmBaseCurrency);
-    });
-    return unsubscribe;
-  }, [flockId, navigation, displayCurrency, farmBaseCurrency]);
+  useRefreshOnFocus(refetchAll);
 
   const handleReopen = () => {
+    if (!requireOnline('Reopening a cycle')) return;
     Alert.alert(
       'Reopen Cycle',
       `Reopen "${flock.name}"? This will allow new logs and transactions again.`,
@@ -79,7 +82,7 @@ const FlockDetailScreen = ({ route, navigation }) => {
           onPress: async () => {
             try {
               await client.post(`/flocks/${flockId}/reopen_cycle/`);
-              fetchAll();
+              refetchAll();
             } catch (error) {
               const detail = error.response?.data?.detail || 'Failed to reopen cycle.';
               Alert.alert('Error', detail);
@@ -98,7 +101,17 @@ const FlockDetailScreen = ({ route, navigation }) => {
     );
   }
 
-  if (!flock) return null;
+  if (!flock) {
+    if (flockQuery.fetchStatus !== 'paused') return null;
+    return (
+      <View style={styles.centered}>
+        <MaterialCommunityIcons name="cloud-off-outline" size={48} color={theme.colors.textSecondary} />
+        <Text style={{ color: theme.colors.textSecondary, marginTop: 12 }}>
+          You're offline. This flock will load when you reconnect.
+        </Text>
+      </View>
+    );
+  }
 
   // ── Derived stats ───────────────────────────────────────────
   const totalEggs    = eggCollections.reduce((s, r) => s + (r.quantity_collected || 0), 0);
@@ -251,7 +264,7 @@ const FlockDetailScreen = ({ route, navigation }) => {
         <ActionBtn
           icon="archive-outline"
           label="Close Cycle"
-          onPress={() => navigation.navigate('CloseCycle', { flockId: flock.id, flockName: flock.name })}
+          onPress={() => requireOnline('Closing a cycle') && navigation.navigate('CloseCycle', { flockId: flock.id, flockName: flock.name })}
           color="#F44336"
         />
       )}
@@ -269,7 +282,7 @@ const FlockDetailScreen = ({ route, navigation }) => {
           <ActionBtn
             icon="receipt"
             label="Sell"
-            onPress={() => navigation.navigate('SalesInvoice', { flockId: flock.id, flockName: flock.name })}
+            onPress={() => requireOnline('Creating an invoice') && navigation.navigate('SalesInvoice', { flockId: flock.id, flockName: flock.name })}
             color="#4CAF50"
           />
           <TouchableOpacity
@@ -373,6 +386,15 @@ const FlockDetailScreen = ({ route, navigation }) => {
         })}
       </View>
 
+      {pendingCount > 0 && (
+        <View style={[styles.pendingNote, { backgroundColor: theme.colors.secondary + '22' }]}>
+          <MaterialCommunityIcons name="cloud-upload-outline" size={16} color={theme.colors.text} />
+          <Text style={[styles.pendingNoteText, { color: theme.colors.text }]}>
+            {pendingCount} {pendingCount === 1 ? 'entry' : 'entries'} waiting to sync. Totals include them.
+          </Text>
+        </View>
+      )}
+
       {/* Paged content */}
       <ScrollView
         ref={pagerRef}
@@ -404,6 +426,8 @@ const getStyles = (theme) => StyleSheet.create({
   main:    { flex: 1, backgroundColor: theme.colors.background },
   centered:{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background },
   scroll:  { padding: 16, paddingBottom: 40 },
+  pendingNote: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
+  pendingNoteText: { fontSize: 13, flex: 1 },
 
   // Tabs
   tabBar: {

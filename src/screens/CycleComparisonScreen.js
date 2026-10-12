@@ -1,8 +1,8 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useContext } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, ActivityIndicator, Dimensions,
 } from 'react-native';
-import client from '../api/client';
+import { useApiQuery } from '../api/queries';
 import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -12,28 +12,15 @@ import { formatCurrency } from '../utils/currency';
 const { width } = Dimensions.get('window');
 
 const CycleComparisonScreen = ({ navigation }) => {
-  const [cycles, setCycles] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { theme } = useTheme();
   const { displayCurrency, farmBaseCurrency } = useContext(AuthContext);
   const isConverting = displayCurrency !== farmBaseCurrency;
   const styles = getStyles(theme);
-
-  useEffect(() => {
-    const fetchCycles = async () => {
-      try {
-        const params = {};
-        if (displayCurrency !== farmBaseCurrency) params.currency = displayCurrency;
-        const response = await client.get('/flocks/cycle_comparison/', { params });
-        setCycles(response.data.cycles || []);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchCycles();
-  }, [displayCurrency, farmBaseCurrency]);
+  const { data, isLoading: loading } = useApiQuery(
+    '/flocks/cycle_comparison/',
+    isConverting ? { currency: displayCurrency } : {},
+  );
+  const cycles = data?.cycles || [];
 
   if (loading) {
     return (

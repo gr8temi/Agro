@@ -1,6 +1,8 @@
 import React, { useState, useMemo, useEffect, useContext } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal, KeyboardAvoidingView } from 'react-native';
-import client from '../api/client';
+import { useFlocks } from '../api/queries';
+import { useSubmitEntry } from '../context/OutboxContext';
+import { toLocalDateString } from '../utils/date';
 import { useNavigation } from '@react-navigation/native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -21,11 +23,12 @@ const AddTransactionScreen = () => {
   const [description, setDescription] = useState('');
   const [flockId, setFlockId] = useState(null);
   const [flockOpen, setFlockOpen] = useState(false);
-  const [flockItems, setFlockItems] = useState([]);
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { farmBaseCurrency, displayCurrency, financeCategories } = useContext(AuthContext);
   const styles = getStyles(theme);
+  const submitEntry = useSubmitEntry('transaction', 'Failed to add transaction');
+  const { data: flocks = [] } = useFlocks();
 
   const categoryItems = useMemo(() => {
     const list = financeCategories[type] || [];
@@ -38,31 +41,26 @@ const AddTransactionScreen = () => {
     }
   }, [type, categoryItems]);
 
-  useEffect(() => {
-    client.get('/flocks/')
-      .then(res => {
-        const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
-        const sorted = [...data].sort((a, b) => {
-          if (a.status === 'active' && b.status !== 'active') return -1;
-          if (a.status !== 'active' && b.status === 'active') return 1;
-          return 0;
-        });
-        setFlockItems([
-          { label: 'None (general)', value: null },
-          ...sorted.map(f => ({
-            label: f.status === 'active' ? f.name : `${f.name} (Closed)`,
-            value: f.id,
-            icon: () => (
-              <View style={{
-                width: 10, height: 10, borderRadius: 5,
-                backgroundColor: f.status === 'active' ? '#4CAF50' : '#9E9E9E',
-              }} />
-            ),
-          })),
-        ]);
-      })
-      .catch(() => {});
-  }, []);
+  const flockItems = useMemo(() => {
+    const sorted = [...flocks].sort((a, b) => {
+      if (a.status === 'active' && b.status !== 'active') return -1;
+      if (a.status !== 'active' && b.status === 'active') return 1;
+      return 0;
+    });
+    return [
+      { label: 'None (general)', value: null },
+      ...sorted.map(f => ({
+        label: f.status === 'active' ? f.name : `${f.name} (Closed)`,
+        value: f.id,
+        icon: () => (
+          <View style={{
+            width: 10, height: 10, borderRadius: 5,
+            backgroundColor: f.status === 'active' ? '#4CAF50' : '#9E9E9E',
+          }} />
+        ),
+      })),
+    ];
+  }, [flocks]);
 
   const onChangeDate = (event, selectedDate) => {
     const currentDate = selectedDate || date;
@@ -73,22 +71,22 @@ const AddTransactionScreen = () => {
   };
 
   const handleSubmit = async () => {
-    try {
-      const payload = {
-        date: date.toISOString().split('T')[0],
-        type,
-        category,
-        amount: parseFloat(amount),
-        description,
-      };
-      if (displayCurrency !== farmBaseCurrency) payload.currency = displayCurrency;
-      if (flockId) payload.related_flock = flockId;
-      await client.post('/transactions/', payload);
-      navigation.goBack();
-    } catch (error) {
-      console.error(error);
-      alert('Failed to add transaction');
+    const parsedAmount = parseFloat(amount);
+    if (Number.isNaN(parsedAmount) || parsedAmount <= 0) {
+      alert('Please enter a valid amount.');
+      return;
     }
+    const payload = {
+      date: toLocalDateString(date),
+      type,
+      category,
+      amount: parsedAmount,
+      description,
+    };
+    if (displayCurrency !== farmBaseCurrency) payload.currency = displayCurrency;
+    if (flockId) payload.related_flock = flockId;
+    const saved = await submitEntry(payload);
+    if (saved) navigation.goBack();
   };
 
   return (
@@ -98,7 +96,7 @@ const AddTransactionScreen = () => {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Date</Text>
         <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateInput}>
-          <Text style={styles.dateText}>{date.toISOString().split('T')[0]}</Text>
+          <Text style={styles.dateText}>{toLocalDateString(date)}</Text>
         </TouchableOpacity>
         {showDatePicker && (
           Platform.OS === 'ios' ? (

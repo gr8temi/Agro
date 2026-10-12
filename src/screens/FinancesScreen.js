@@ -1,7 +1,11 @@
-import React, { useEffect, useState, useMemo, useContext, useRef } from 'react';
+import React, { useCallback, useState, useMemo, useContext, useRef } from 'react';
 import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, ScrollView, Dimensions, Platform, Alert, Modal, TextInput, KeyboardAvoidingView } from 'react-native';
 import { Swipeable } from 'react-native-gesture-handler';
 import client from '../api/client';
+import { useApiQuery, useFlocks, asList } from '../api/queries';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
+import { useRequireOnline } from '../context/NetworkContext';
+import { useOutbox } from '../context/OutboxContext';
 import { useTheme } from '../context/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
 import CustomHeader from '../components/CustomHeader';
@@ -12,8 +16,6 @@ import DropDownPicker from 'react-native-dropdown-picker';
 import Toast from 'react-native-toast-message';
 
 const FinancesScreen = ({ navigation }) => {
-  const [transactions, setTransactions] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [timePeriod, setTimePeriod] = useState(30);
   const [categoryView, setCategoryView] = useState('expense');
   const [editModalVisible, setEditModalVisible] = useState(false);
@@ -23,7 +25,6 @@ const FinancesScreen = ({ navigation }) => {
   const [editCategory, setEditCategory] = useState(null);
   const [editCategoryOpen, setEditCategoryOpen] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
-  const [cycles, setCycles] = useState([]);
   const [selectedCycle, setSelectedCycle] = useState(null);
   const [cyclePickerOpen, setCyclePickerOpen] = useState(false);
   const { theme } = useTheme();
@@ -33,6 +34,29 @@ const FinancesScreen = ({ navigation }) => {
   const swipeableRefs = useRef({});
   const styles = getStyles(theme);
   const screenWidth = Dimensions.get('window').width;
+  const requireOnline = useRequireOnline();
+  const { pendingFor } = useOutbox();
+  const pendingTransactions = pendingFor('transaction', selectedCycle ?? undefined);
+
+  const { data: cycles = [] } = useFlocks();
+  const transactionParams = {};
+  if (isConverting) transactionParams.currency = displayCurrency;
+  if (selectedCycle) transactionParams.related_flock = selectedCycle;
+  const transactionsQuery = useApiQuery('/transactions/', transactionParams);
+  const transactions = asList(transactionsQuery.data);
+  const loading = transactionsQuery.isLoading;
+
+  const analyticsParams = { period: timePeriod > 0 ? timePeriod : 3650 };
+  if (isConverting) analyticsParams.currency = displayCurrency;
+  if (selectedCycle != null) analyticsParams.related_flock = selectedCycle;
+  const analyticsQuery = useApiQuery('/transactions/analytics/', analyticsParams);
+  const analyticsData = analyticsQuery.data ?? null;
+
+  const refetchAll = useCallback(() => {
+    transactionsQuery.refetch();
+    analyticsQuery.refetch();
+  }, [transactionsQuery.refetch, analyticsQuery.refetch]);
+  useRefreshOnFocus(refetchAll);
 
   const categoryLabels = useMemo(() => {
     const map = {};
@@ -70,56 +94,8 @@ const FinancesScreen = ({ navigation }) => {
     return cycle ? cycle.name : null;
   };
 
-  const [analyticsData, setAnalyticsData] = useState(null);
-
-  const fetchTransactions = async (currency, baseCurrency, cycleId) => {
-    try {
-      const params = {};
-      if (currency !== baseCurrency) params.currency = currency;
-      if (cycleId) params.related_flock = cycleId;
-      const response = await client.get('/transactions/', { params });
-      const data = Array.isArray(response.data) ? response.data : (response.data.results || []);
-      setTransactions(data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchAnalytics = async (currency, baseCurrency, cycleId, period) => {
-    try {
-      const params = {};
-      if (currency !== baseCurrency) params.currency = currency;
-      if (cycleId != null) params.related_flock = cycleId;
-      params.period = period > 0 ? period : 3650;
-      const response = await client.get('/transactions/analytics/', { params });
-      setAnalyticsData(response.data);
-    } catch (error) {
-      console.error(error);
-    }
-  };
-
-  useEffect(() => {
-    client.get('/flocks/')
-      .then(res => {
-        const data = Array.isArray(res.data) ? res.data : (res.data.results || []);
-        setCycles(data);
-      })
-      .catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    fetchTransactions(displayCurrency, farmBaseCurrency, selectedCycle);
-    fetchAnalytics(displayCurrency, farmBaseCurrency, selectedCycle, timePeriod);
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchTransactions(displayCurrency, farmBaseCurrency, selectedCycle);
-      fetchAnalytics(displayCurrency, farmBaseCurrency, selectedCycle, timePeriod);
-    });
-    return unsubscribe;
-  }, [navigation, displayCurrency, farmBaseCurrency, selectedCycle, timePeriod]);
-
   const handleDeleteTransaction = (transaction) => {
+    if (!requireOnline('Deleting a transaction')) return;
     Alert.alert(
       'Delete Transaction',
       `Are you sure you want to delete this ${transaction.type} of ${formatCurrency(parseFloat(transaction.amount), displayCurrency)}?`,
@@ -132,8 +108,7 @@ const FinancesScreen = ({ navigation }) => {
             try {
               await client.delete(`/transactions/${transaction.id}/`);
               Toast.show({ type: 'success', text1: 'Success', text2: 'Transaction deleted successfully', position: 'top' });
-              fetchTransactions(displayCurrency, farmBaseCurrency, selectedCycle);
-              fetchAnalytics(displayCurrency, farmBaseCurrency, selectedCycle, timePeriod);
+              refetchAll();
             } catch (error) {
               Toast.show({ type: 'error', text1: 'Error', text2: error.response?.data?.detail || 'Failed to delete transaction', position: 'top' });
             }
@@ -144,6 +119,7 @@ const FinancesScreen = ({ navigation }) => {
   };
 
   const handleEditTransaction = (transaction) => {
+    if (!requireOnline('Editing a transaction')) return;
     setEditingTransaction(transaction);
     setEditAmount(String(transaction.amount));
     setEditDescription(transaction.description || '');
@@ -169,8 +145,7 @@ const FinancesScreen = ({ navigation }) => {
       Toast.show({ type: 'success', text1: 'Success', text2: 'Transaction updated successfully', position: 'top' });
       setEditModalVisible(false);
       setEditingTransaction(null);
-      fetchTransactions(displayCurrency, farmBaseCurrency, selectedCycle);
-      fetchAnalytics(displayCurrency, farmBaseCurrency, selectedCycle, timePeriod);
+      refetchAll();
     } catch (error) {
       Toast.show({ type: 'error', text1: 'Error', text2: error.response?.data?.detail || 'Failed to update transaction', position: 'top' });
     } finally {
@@ -369,7 +344,19 @@ const FinancesScreen = ({ navigation }) => {
   return (
     <View style={styles.mainContainer}>
       <CustomHeader title="Finances" navigation={navigation} showBack={true} />
-      
+
+      {pendingTransactions.length > 0 && (
+        <TouchableOpacity
+          style={[styles.pendingNote, { backgroundColor: theme.colors.secondary + '22' }]}
+          onPress={() => navigation.navigate('SyncQueue')}
+        >
+          <MaterialCommunityIcons name="cloud-upload-outline" size={16} color={theme.colors.text} />
+          <Text style={[styles.pendingNoteText, { color: theme.colors.text }]}>
+            {pendingTransactions.length} {pendingTransactions.length === 1 ? 'transaction' : 'transactions'} waiting to sync. Totals will update once synced.
+          </Text>
+        </TouchableOpacity>
+      )}
+
       <View style={styles.contentContainer}>
           {/* Top Section: Cycle Filter, Period & Summary */}
           <View style={styles.fixedTopSection}>
@@ -762,6 +749,17 @@ const getStyles = (theme) => StyleSheet.create({
   scrollContent: {
       padding: theme.spacing.m,
       paddingTop: 5,
+  },
+  pendingNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  pendingNoteText: {
+    fontSize: 13,
+    flex: 1,
   },
   loadingContainer: {
     flex: 1,

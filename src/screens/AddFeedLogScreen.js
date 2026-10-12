@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, Button, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal, KeyboardAvoidingView } from 'react-native';
-import client from '../api/client';
+import { useSubmitEntry } from '../context/OutboxContext';
+import { toLocalDateString } from '../utils/date';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import CustomHeader from '../components/CustomHeader';
@@ -20,6 +21,7 @@ const AddFeedLogScreen = () => {
   const { theme } = useTheme();
   const { farmBaseCurrency, displayCurrency } = useContext(AuthContext);
   const styles = getStyles(theme);
+  const submitEntry = useSubmitEntry('feedLog', 'Failed to add feed log');
 
   const onChangeDate = (event, selectedDate) => {
     const currentDate = selectedDate || date;
@@ -30,21 +32,21 @@ const AddFeedLogScreen = () => {
   };
 
   const handleSubmit = async () => {
-    try {
-      const payload = {
-        flock: flockId,
-        date: date.toISOString().split('T')[0],
-        quantity_kg: parseFloat(quantity),
-        feed_type: feedType,
-        cost: parseFloat(cost) || 0,
-      };
-      if (displayCurrency !== farmBaseCurrency) payload.currency = displayCurrency;
-      await client.post('/feed-logs/', payload);
-      navigation.goBack();
-    } catch (error) {
-      console.error(error);
-      alert('Failed to add feed log');
+    const quantityKg = parseFloat(quantity);
+    if (Number.isNaN(quantityKg) || quantityKg <= 0 || !feedType.trim()) {
+      alert('Please enter the feed quantity and type.');
+      return;
     }
+    const payload = {
+      flock: flockId,
+      date: toLocalDateString(date),
+      quantity_kg: quantityKg,
+      feed_type: feedType.trim(),
+      cost: parseFloat(cost) || 0,
+    };
+    if (displayCurrency !== farmBaseCurrency) payload.currency = displayCurrency;
+    const saved = await submitEntry(payload);
+    if (saved) navigation.goBack();
   };
 
   return (
@@ -54,7 +56,7 @@ const AddFeedLogScreen = () => {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Date</Text>
         <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateInput}>
-          <Text style={styles.dateText}>{date.toISOString().split('T')[0]}</Text>
+          <Text style={styles.dateText}>{toLocalDateString(date)}</Text>
         </TouchableOpacity>
         {showDatePicker && (
           Platform.OS === 'ios' ? (

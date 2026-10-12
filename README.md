@@ -47,9 +47,11 @@ A React Native mobile application for managing poultry farm operations on iOS an
    npm install
    ```
 
-3. Configure the backend URL:
-   - Update the API base URL in your API configuration file
-   - Default: `http://localhost:8000` (for local development)
+3. Configure the backend URL (optional):
+   - The app uses the production API by default.
+   - To use a local backend, copy `.env.example` to `.env.local` and set
+     `EXPO_PUBLIC_API_URL=http://<your-mac-lan-ip>:8001/api`, then restart `npm start`.
+   - The backend must allow that host (`DJANGO_ALLOWED_HOSTS` in AgroBack's `.env`).
 
 4. Start the Expo development server:
    ```bash

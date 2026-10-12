@@ -3,6 +3,7 @@ import * as SecureStore from 'expo-secure-store';
 import * as LocalAuthentication from 'expo-local-authentication';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import client, { setOnAuthFailure } from '../api/client';
+import { clearQueryCache } from '../api/queryClient';
 import Toast from 'react-native-toast-message';
 
 export const AuthContext = createContext();
@@ -211,6 +212,12 @@ export const AuthProvider = ({ children }) => {
     await SecureStore.deleteItemAsync('userToken');
     await SecureStore.deleteItemAsync('refreshToken');
     await SecureStore.deleteItemAsync('userInfo');
+    // Cached farm data is persisted to disk; don't leave it for the next user.
+    try {
+      await clearQueryCache();
+    } catch {
+      // Non-critical
+    }
     setIsLoading(false);
   }, []);
 
