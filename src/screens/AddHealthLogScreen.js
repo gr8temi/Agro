@@ -1,6 +1,7 @@
 import React, { useState, useContext } from 'react';
 import { View, Text, TextInput, StyleSheet, ScrollView, Platform, TouchableOpacity, Modal, KeyboardAvoidingView } from 'react-native';
-import client from '../api/client';
+import { useSubmitEntry } from '../context/OutboxContext';
+import { toLocalDateString } from '../utils/date';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import DropDownPicker from 'react-native-dropdown-picker';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -30,6 +31,7 @@ const AddHealthLogScreen = () => {
   const { theme } = useTheme();
   const { farmBaseCurrency, displayCurrency } = useContext(AuthContext);
   const styles = getStyles(theme);
+  const submitEntry = useSubmitEntry('healthLog', 'Failed to add health log');
 
   const onChangeDate = (event, selectedDate) => {
     const currentDate = selectedDate || date;
@@ -40,22 +42,21 @@ const AddHealthLogScreen = () => {
   };
 
   const handleSubmit = async () => {
-    try {
-      const payload = {
-        flock: flockId,
-        date: date.toISOString().split('T')[0],
-        log_type: logType,
-        description,
-        cost: parseFloat(cost) || 0,
-        affected_birds: parseInt(affectedBirds) || 0,
-      };
-      if (displayCurrency !== farmBaseCurrency) payload.currency = displayCurrency;
-      await client.post('/health-logs/', payload);
-      navigation.goBack();
-    } catch (error) {
-      console.error(error);
-      alert('Failed to add health log');
+    if (!description.trim()) {
+      alert('Please enter a description.');
+      return;
     }
+    const payload = {
+      flock: flockId,
+      date: toLocalDateString(date),
+      log_type: logType,
+      description: description.trim(),
+      cost: parseFloat(cost) || 0,
+      affected_birds: parseInt(affectedBirds, 10) || 0,
+    };
+    if (displayCurrency !== farmBaseCurrency) payload.currency = displayCurrency;
+    const saved = await submitEntry(payload);
+    if (saved) navigation.goBack();
   };
 
   return (
@@ -65,7 +66,7 @@ const AddHealthLogScreen = () => {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <Text style={styles.label}>Date</Text>
         <TouchableOpacity onPress={() => setShowDatePicker(true)} style={styles.dateInput}>
-          <Text style={styles.dateText}>{date.toISOString().split('T')[0]}</Text>
+          <Text style={styles.dateText}>{toLocalDateString(date)}</Text>
         </TouchableOpacity>
         {showDatePicker && (
           Platform.OS === 'ios' ? (

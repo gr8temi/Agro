@@ -1,5 +1,5 @@
 import React, { useContext, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, ScrollView, Dimensions, Alert } from 'react-native';
 import { AuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,6 +7,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { TourGuideZone, useTourGuideController } from 'rn-tourguide';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFlocks } from '../api/queries';
+import { useOutbox } from '../context/OutboxContext';
 import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import CurrencyPicker from '../components/CurrencyPicker';
 import { getCurrencySymbol } from '../utils/currency';
@@ -21,6 +22,23 @@ const DashboardScreen = ({ navigation }) => {
   const { logout, userInfo, displayCurrency, setDisplayCurrency, supportedCurrencies } = useContext(AuthContext);
   const { data: activeFlocks, refetch: refetchActiveFlocks } = useFlocks('active');
   const activeFlockCount = activeFlocks ? activeFlocks.length : null;
+  const { pendingCount, failedCount } = useOutbox();
+  const unsyncedCount = pendingCount + failedCount;
+
+  const handleLogout = () => {
+    if (unsyncedCount === 0) {
+      logout();
+      return;
+    }
+    Alert.alert(
+      'Unsynced changes',
+      `You have ${unsyncedCount} ${unsyncedCount === 1 ? 'entry' : 'entries'} that haven't synced. They stay on this phone and will sync next time you log in as ${userInfo?.username}.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Log out', style: 'destructive', onPress: logout },
+      ],
+    );
+  };
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
 
   const { canStart, start, stop, eventEmitter } = useTourGuideController();
@@ -93,7 +111,7 @@ const DashboardScreen = ({ navigation }) => {
           <TouchableOpacity onPress={() => navigation.navigate('Settings')} style={styles.headerIcon}>
             <MaterialCommunityIcons name="cog" size={26} color={theme.colors.text} />
           </TouchableOpacity>
-          <TouchableOpacity onPress={logout} style={styles.headerIcon}>
+          <TouchableOpacity onPress={handleLogout} style={styles.headerIcon}>
             <MaterialCommunityIcons name="logout" size={26} color={theme.colors.error} />
           </TouchableOpacity>
         </View>
@@ -107,6 +125,25 @@ const DashboardScreen = ({ navigation }) => {
             <Text style={styles.roleText}>{userInfo?.role?.toUpperCase()}</Text>
           </View>
         </View>
+
+        {unsyncedCount > 0 && (
+          <TouchableOpacity
+            style={[styles.syncStrip, failedCount > 0 && { borderColor: theme.colors.error }]}
+            onPress={() => navigation.navigate('SyncQueue')}
+          >
+            <MaterialCommunityIcons
+              name={failedCount > 0 ? 'alert-circle-outline' : 'cloud-upload-outline'}
+              size={22}
+              color={failedCount > 0 ? theme.colors.error : theme.colors.primary}
+            />
+            <Text style={styles.syncStripText}>
+              {failedCount > 0
+                ? `${failedCount} ${failedCount === 1 ? 'entry' : 'entries'} couldn't sync. Tap to review.`
+                : `${pendingCount} ${pendingCount === 1 ? 'entry' : 'entries'} waiting to sync`}
+            </Text>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={theme.colors.textSecondary} />
+          </TouchableOpacity>
+        )}
         
         <View style={styles.gridContainer}>
           {(userInfo?.role === 'superuser' || userInfo?.permissions?.can_manage_flocks || userInfo?.role === 'staff') && (
@@ -245,6 +282,23 @@ const getStyles = (theme) => StyleSheet.create({
   },
   scrollContent: {
     padding: GRID_PADDING,
+  },
+  syncStrip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 16,
+  },
+  syncStripText: {
+    flex: 1,
+    color: theme.colors.text,
+    fontSize: 14,
+    fontWeight: '600',
   },
   welcomeSection: {
     marginBottom: theme.spacing.xl,

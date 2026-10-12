@@ -30,6 +30,7 @@ import CreateFarmScreen from '../screens/CreateFarmScreen';
 import JoinFarmScreen from '../screens/JoinFarmScreen';
 import FarmOnboardingScreen from '../screens/FarmOnboardingScreen';
 import ReminderScreen from '../screens/ReminderScreen';
+import SyncQueueScreen from '../screens/SyncQueueScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import ResetPasswordScreen from '../screens/ResetPasswordScreen';
 import ForgotPasswordScreen from '../screens/ForgotPasswordScreen';
@@ -93,6 +94,7 @@ const AppNavigator = () => {
                 <Stack.Screen name="AddUser" component={AddUserScreen} />
                 <Stack.Screen name="EditUser" component={EditUserScreen} />
                 <Stack.Screen name="Reminders" component={ReminderScreen} />
+                <Stack.Screen name="SyncQueue" component={SyncQueueScreen} />
                 <Stack.Screen name="Settings" component={SettingsScreen} />
                 <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
                 <Stack.Screen name="TransferOwnership" component={TransferOwnershipScreen} />

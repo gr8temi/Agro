@@ -2,7 +2,8 @@ import React, { useState, useEffect, useContext } from 'react';
 import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert, Platform, ActivityIndicator, Modal, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
-import reportsApi from '../../api/reports';
+import { useSubmitEntry } from '../../context/OutboxContext';
+import { toLocalDateString } from '../../utils/date';
 import { useReportConfig } from '../../api/queries';
 import { ThemeContext } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
@@ -20,6 +21,7 @@ const DailyReportFormScreen = ({ navigation }) => {
   const { data: config = null, isLoading: loading, isError, fetchStatus } = useReportConfig();
   const offlineWithoutConfig = fetchStatus === 'paused' && !config;
   const [answers, setAnswers] = useState({});
+  const submitEntry = useSubmitEntry('dailyReport', 'Submission Failed');
   const [submitting, setSubmitting] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(null);
 
@@ -47,7 +49,7 @@ const DailyReportFormScreen = ({ navigation }) => {
     setSubmitting(true);
     
     const payload = {
-        reference_date: new Date().toISOString().split('T')[0],
+        reference_date: toLocalDateString(),
         answers: Object.values(answers).map(a => ({
             question_id: a.question_id,
             answer_text: a.answer_text,
@@ -56,15 +58,11 @@ const DailyReportFormScreen = ({ navigation }) => {
         }))
     };
 
-    try {
-        await reportsApi.createSubmission(payload);
-        Toast.show({ type: 'success', text1: 'Report Submitted!' });
+    const result = await submitEntry(payload);
+    setSubmitting(false);
+    if (result) {
+        if (!result.queued) Toast.show({ type: 'success', text1: 'Report Submitted!' });
         navigation.goBack();
-    } catch (error) {
-        console.error(error);
-        Toast.show({ type: 'error', text1: 'Submission Failed' });
-    } finally {
-        setSubmitting(false);
     }
   };
 
@@ -136,7 +134,7 @@ const DailyReportFormScreen = ({ navigation }) => {
                                         textColor={colors.text}
                                         onChange={(event, selectedDate) => {
                                             if (selectedDate) {
-                                                const dateString = selectedDate.toISOString().split('T')[0];
+                                                const dateString = toLocalDateString(selectedDate);
                                                 handleInputChange(question.id, dateString, 'date');
                                             }
                                         }}
@@ -152,7 +150,7 @@ const DailyReportFormScreen = ({ navigation }) => {
                             onChange={(event, selectedDate) => {
                                 setShowDatePicker(null);
                                 if (selectedDate) {
-                                    const dateString = selectedDate.toISOString().split('T')[0];
+                                    const dateString = toLocalDateString(selectedDate);
                                     handleInputChange(question.id, dateString, 'date');
                                 }
                             }}

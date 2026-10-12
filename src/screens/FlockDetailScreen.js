@@ -10,6 +10,7 @@ import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import { AuthContext } from '../context/AuthContext';
+import { useOutbox } from '../context/OutboxContext';
 import { formatCurrency } from '../utils/currency';
 
 const fmt = (amount, currency, isConverting) =>
@@ -27,9 +28,24 @@ const FlockDetailScreen = ({ route, navigation }) => {
   const flockQuery = useFlock(flockId, displayCurrency, farmBaseCurrency);
   const healthQuery = useHealthLogs(flockId, displayCurrency, farmBaseCurrency);
   const eggQuery = useEggCollections(flockId);
+  const { pendingFor } = useOutbox();
+
+  // Entries saved offline but not yet synced. Server rows carry the same client_id
+  // once synced, so skip any the server already has.
+  const withPending = (rows, type, overrides = {}) => {
+    const synced = new Set(rows.map((r) => r.client_id).filter(Boolean));
+    const pending = pendingFor(type, flockId)
+      .filter((i) => !synced.has(i.id))
+      .map((i) => ({ ...i.payload, ...overrides, id: i.id, _pending: true }));
+    return [...pending, ...rows];
+  };
   const flock = flockQuery.data ?? null;
-  const healthLogs = healthQuery.data ?? [];
-  const eggCollections = eggQuery.data ?? [];
+  // Pending costs may be in a different currency, so leave them out of totals until synced.
+  const healthLogs = withPending(healthQuery.data ?? [], 'healthLog', { cost: 0 });
+  const eggCollections = withPending(eggQuery.data ?? [], 'eggCollection');
+  const pendingCount = healthLogs.filter((l) => l._pending).length
+    + eggCollections.filter((e) => e._pending).length
+    + pendingFor('feedLog', flockId).length;
   const loading = flockQuery.isLoading || healthQuery.isLoading || eggQuery.isLoading;
   const isConverting = displayCurrency !== farmBaseCurrency;
   const styles = getStyles(theme);
@@ -367,6 +383,15 @@ const FlockDetailScreen = ({ route, navigation }) => {
         })}
       </View>
 
+      {pendingCount > 0 && (
+        <View style={[styles.pendingNote, { backgroundColor: theme.colors.secondary + '22' }]}>
+          <MaterialCommunityIcons name="cloud-upload-outline" size={16} color={theme.colors.text} />
+          <Text style={[styles.pendingNoteText, { color: theme.colors.text }]}>
+            {pendingCount} {pendingCount === 1 ? 'entry' : 'entries'} waiting to sync. Totals include them.
+          </Text>
+        </View>
+      )}
+
       {/* Paged content */}
       <ScrollView
         ref={pagerRef}
@@ -398,6 +423,8 @@ const getStyles = (theme) => StyleSheet.create({
   main:    { flex: 1, backgroundColor: theme.colors.background },
   centered:{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.background },
   scroll:  { padding: 16, paddingBottom: 40 },
+  pendingNote: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 16, paddingVertical: 8 },
+  pendingNoteText: { fontSize: 13, flex: 1 },
 
   // Tabs
   tabBar: {

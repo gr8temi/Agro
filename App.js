@@ -10,6 +10,7 @@ import Toast from 'react-native-toast-message';
 import { NotificationProvider } from './src/context/NotificationContext';
 import { ThemeProvider } from './src/context/ThemeContext';
 import { NetworkProvider } from './src/context/NetworkContext';
+import { OutboxProvider } from './src/context/OutboxContext';
 import OfflineBanner from './src/components/OfflineBanner';
 
 
@@ -21,11 +22,13 @@ export default function App() {
           <ThemeProvider>
             <NetworkProvider>
               <AuthProvider>
-                <NotificationProvider>
-                  <AppNavigator />
-                  <OfflineBanner />
-                  <Toast />
-                </NotificationProvider>
+                <OutboxProvider>
+                  <NotificationProvider>
+                    <AppNavigator />
+                    <OfflineBanner />
+                    <Toast />
+                  </NotificationProvider>
+                </OutboxProvider>
               </AuthProvider>
             </NetworkProvider>
           </ThemeProvider>

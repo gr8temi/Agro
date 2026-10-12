@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useNetwork } from '../context/NetworkContext';
 import { useTheme } from '../context/ThemeContext';
+import { useOutbox } from '../context/OutboxContext';
 
 const BACK_ONLINE_DURATION = 2500;
 // Keep the pill clear of the bottom tab bar.
@@ -11,6 +12,7 @@ const TAB_BAR_OFFSET = 64;
 
 const OfflineBanner = () => {
   const { isOnline } = useNetwork();
+  const { pendingCount } = useOutbox();
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const opacity = useRef(new Animated.Value(0)).current;
@@ -48,7 +50,9 @@ const OfflineBanner = () => {
     >
       <MaterialCommunityIcons name={offline ? 'cloud-off-outline' : 'cloud-check-outline'} size={18} color={color} />
       <Text style={[styles.text, { color }]}>
-        {offline ? "You're offline" : 'Back online'}
+        {offline
+          ? `You're offline${pendingCount ? ` · ${pendingCount} waiting to sync` : ''}`
+          : pendingCount ? 'Back online · syncing…' : 'Back online'}
       </Text>
     </Animated.View>
   );
