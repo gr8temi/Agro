@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert,
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import reportsApi from '../../api/reports';
+import { useReportConfig } from '../../api/queries';
 import { ThemeContext } from '../../context/ThemeContext';
 import Toast from 'react-native-toast-message';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -16,31 +17,17 @@ const DailyReportFormScreen = ({ navigation }) => {
   
   useScreenTour('DailyReportTour');
   
-  const [config, setConfig] = useState(null);
+  const { data: config = null, isLoading: loading, isError, fetchStatus } = useReportConfig();
+  const offlineWithoutConfig = fetchStatus === 'paused' && !config;
   const [answers, setAnswers] = useState({});
-  const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(null);
 
   useEffect(() => {
-    fetchConfig();
-  }, []);
-
-  const fetchConfig = async () => {
-    try {
-      const result = await reportsApi.getConfig();
-      if ((result.status === 200 || result.status === 201) && result.data.length > 0) {
-        setConfig(result.data[0]);
-      } else if (result.data.results && result.data.results.length > 0) {
-         setConfig(result.data.results[0]);
-      }
-    } catch (error) {
-      console.error(error);
+    if (isError && !config) {
       Toast.show({ type: 'error', text1: 'Error fetching config' });
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [isError, config]);
 
   const handleInputChange = (questionId, value, type) => {
     setAnswers(prev => ({
@@ -202,10 +189,14 @@ const DailyReportFormScreen = ({ navigation }) => {
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
         {!config ? (
             <View style={[styles.emptyState, { backgroundColor: colors.surface }]}>
-                <MaterialCommunityIcons name="clipboard-text-off-outline" size={64} color={colors.textSecondary} />
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>No Report Configured</Text>
+                <MaterialCommunityIcons name={offlineWithoutConfig ? 'cloud-off-outline' : 'clipboard-text-off-outline'} size={64} color={colors.textSecondary} />
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    {offlineWithoutConfig ? "You're Offline" : 'No Report Configured'}
+                </Text>
                 <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                    There are no questions configured for today's report. Please contact your manager.
+                    {offlineWithoutConfig
+                        ? 'The report questions will load when you reconnect.'
+                        : "There are no questions configured for today's report. Please contact your manager."}
                 </Text>
             </View>
         ) : (

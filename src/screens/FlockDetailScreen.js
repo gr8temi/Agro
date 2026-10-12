@@ -1,9 +1,11 @@
-import React, { useEffect, useState, useRef, useContext } from 'react';
+import React, { useCallback, useState, useRef, useContext } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Dimensions, Alert,
 } from 'react-native';
 import client from '../api/client';
+import { useFlock, useHealthLogs, useEggCollections } from '../api/queries';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
@@ -18,14 +20,17 @@ const TABS = ['Overview', 'Eggs', 'Health'];
 
 const FlockDetailScreen = ({ route, navigation }) => {
   const { flockId, flockName } = route.params;
-  const [flock, setFlock] = useState(null);
-  const [healthLogs, setHealthLogs] = useState([]);
-  const [eggCollections, setEggCollections] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Overview');
   const pagerRef = useRef(null);
   const { theme } = useTheme();
   const { userInfo, displayCurrency, farmBaseCurrency } = useContext(AuthContext);
+  const flockQuery = useFlock(flockId, displayCurrency, farmBaseCurrency);
+  const healthQuery = useHealthLogs(flockId, displayCurrency, farmBaseCurrency);
+  const eggQuery = useEggCollections(flockId);
+  const flock = flockQuery.data ?? null;
+  const healthLogs = healthQuery.data ?? [];
+  const eggCollections = eggQuery.data ?? [];
+  const loading = flockQuery.isLoading || healthQuery.isLoading || eggQuery.isLoading;
   const isConverting = displayCurrency !== farmBaseCurrency;
   const styles = getStyles(theme);
 
@@ -39,34 +44,13 @@ const FlockDetailScreen = ({ route, navigation }) => {
     pagerRef.current?.scrollTo({ x: index * width, animated: true });
   };
 
-  const fetchAll = async (currency, baseCurrency) => {
-    try {
-      const converting = currency !== baseCurrency;
-      const params = converting ? { currency } : {};
-      const [flockRes, healthRes, eggRes] = await Promise.all([
-        client.get(`/flocks/${flockId}/`, { params }),
-        client.get(`/health-logs/`, { params: { flock: flockId, ...params } }),
-        client.get(`/egg-collections/`, { params: { flock: flockId } }),
-      ]);
-      setFlock(flockRes.data);
-      const hData = healthRes.data?.results ?? healthRes.data ?? [];
-      const eData = eggRes.data?.results ?? eggRes.data ?? [];
-      setHealthLogs(Array.isArray(hData) ? hData : []);
-      setEggCollections(Array.isArray(eData) ? eData : []);
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const refetchAll = useCallback(() => {
+    flockQuery.refetch();
+    healthQuery.refetch();
+    eggQuery.refetch();
+  }, [flockQuery.refetch, healthQuery.refetch, eggQuery.refetch]);
 
-  useEffect(() => {
-    fetchAll(displayCurrency, farmBaseCurrency);
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchAll(displayCurrency, farmBaseCurrency);
-    });
-    return unsubscribe;
-  }, [flockId, navigation, displayCurrency, farmBaseCurrency]);
+  useRefreshOnFocus(refetchAll);
 
   const handleReopen = () => {
     Alert.alert(
@@ -79,7 +63,7 @@ const FlockDetailScreen = ({ route, navigation }) => {
           onPress: async () => {
             try {
               await client.post(`/flocks/${flockId}/reopen_cycle/`);
-              fetchAll();
+              refetchAll();
             } catch (error) {
               const detail = error.response?.data?.detail || 'Failed to reopen cycle.';
               Alert.alert('Error', detail);
@@ -98,7 +82,17 @@ const FlockDetailScreen = ({ route, navigation }) => {
     );
   }
 
-  if (!flock) return null;
+  if (!flock) {
+    if (flockQuery.fetchStatus !== 'paused') return null;
+    return (
+      <View style={styles.centered}>
+        <MaterialCommunityIcons name="cloud-off-outline" size={48} color={theme.colors.textSecondary} />
+        <Text style={{ color: theme.colors.textSecondary, marginTop: 12 }}>
+          You're offline. This flock will load when you reconnect.
+        </Text>
+      </View>
+    );
+  }
 
   // ── Derived stats ───────────────────────────────────────────
   const totalEggs    = eggCollections.reduce((s, r) => s + (r.quantity_collected || 0), 0);

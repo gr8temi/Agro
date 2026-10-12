@@ -1,6 +1,7 @@
-import React, { useEffect, useState, useContext } from 'react';
+import React, { useState, useContext } from 'react';
 import { View, Text, FlatList, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
-import client from '../api/client';
+import { useFlocks } from '../api/queries';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import { useNavigation } from '@react-navigation/native';
 import CustomHeader from '../components/CustomHeader';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,9 +11,10 @@ import { AuthContext } from '../context/AuthContext';
 const TABS = ['Active', 'History'];
 
 const FlockListScreen = () => {
-  const [flocks, setFlocks] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('Active');
+  const { data: flocks = [], isLoading: loading, fetchStatus, refetch } =
+    useFlocks(activeTab === 'Active' ? 'active' : 'closed');
+  const offlineWithoutData = fetchStatus === 'paused' && flocks.length === 0;
   const navigation = useNavigation();
   const { theme } = useTheme();
   const { userInfo } = useContext(AuthContext);
@@ -20,29 +22,10 @@ const FlockListScreen = () => {
 
   const isManager = userInfo?.role === 'superuser' || userInfo?.role === 'manager';
 
-  const fetchFlocks = async (tab) => {
-    setLoading(true);
-    try {
-      const status = tab === 'Active' ? 'active' : 'closed';
-      const response = await client.get(`/flocks/?status=${status}`);
-      setFlocks(response.data);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchFlocks(activeTab);
-    });
-    return unsubscribe;
-  }, [navigation, activeTab]);
+  useRefreshOnFocus(refetch);
 
   const switchTab = (tab) => {
     setActiveTab(tab);
-    fetchFlocks(tab);
   };
 
   const renderItem = ({ item }) => (
@@ -114,14 +97,16 @@ const FlockListScreen = () => {
             ListEmptyComponent={
               <View style={styles.emptyContainer}>
                 <MaterialCommunityIcons
-                  name={activeTab === 'Active' ? 'barn' : 'archive-outline'}
+                  name={offlineWithoutData ? 'cloud-off-outline' : activeTab === 'Active' ? 'barn' : 'archive-outline'}
                   size={64}
                   color={theme.colors.textSecondary}
                 />
                 <Text style={styles.emptyText}>
-                  {activeTab === 'Active'
-                    ? 'No active flocks. Tap + to start a new cycle!'
-                    : 'No closed cycles yet.'}
+                  {offlineWithoutData
+                    ? "You're offline. Flocks will load when you reconnect."
+                    : activeTab === 'Active'
+                      ? 'No active flocks. Tap + to start a new cycle!'
+                      : 'No closed cycles yet.'}
                 </Text>
               </View>
             }

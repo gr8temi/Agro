@@ -6,7 +6,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { TourGuideZone, useTourGuideController } from 'rn-tourguide';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import client from '../api/client';
+import { useFlocks } from '../api/queries';
+import { useRefreshOnFocus } from '../hooks/useRefreshOnFocus';
 import CurrencyPicker from '../components/CurrencyPicker';
 import { getCurrencySymbol } from '../utils/currency';
 import Toast from 'react-native-toast-message';
@@ -18,7 +19,8 @@ const CARD_WIDTH = (width - (GRID_PADDING * 2) - CARD_GAP) / 2;
 
 const DashboardScreen = ({ navigation }) => {
   const { logout, userInfo, displayCurrency, setDisplayCurrency, supportedCurrencies } = useContext(AuthContext);
-  const [activeFlockCount, setActiveFlockCount] = useState(null);
+  const { data: activeFlocks, refetch: refetchActiveFlocks } = useFlocks('active');
+  const activeFlockCount = activeFlocks ? activeFlocks.length : null;
   const [currencyPickerVisible, setCurrencyPickerVisible] = useState(false);
 
   const { canStart, start, stop, eventEmitter } = useTourGuideController();
@@ -58,14 +60,7 @@ const DashboardScreen = ({ navigation }) => {
      };
   }, [eventEmitter]);
 
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
-      client.get('/flocks/?status=active')
-        .then(res => setActiveFlockCount(Array.isArray(res.data) ? res.data.length : 0))
-        .catch(() => {});
-    });
-    return unsubscribe;
-  }, [navigation]);
+  useRefreshOnFocus(refetchActiveFlocks);
   const { theme } = useTheme();
   const styles = getStyles(theme);
 
