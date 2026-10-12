@@ -1,24 +1,32 @@
 import React from 'react';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AuthProvider } from './src/context/AuthContext';
 import AppNavigator from './src/navigation/AppNavigator';
 import Toast from 'react-native-toast-message';
 
 import { NotificationProvider } from './src/context/NotificationContext';
 import { ThemeProvider } from './src/context/ThemeContext';
+import { NetworkProvider } from './src/context/NetworkContext';
+import OfflineBanner from './src/components/OfflineBanner';
 
 
 export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
-      <ThemeProvider>
-        <AuthProvider>
-          <NotificationProvider>
-            <AppNavigator />
-            <Toast />
-          </NotificationProvider>
-        </AuthProvider>
-      </ThemeProvider>
+      <SafeAreaProvider>
+        <ThemeProvider>
+          <NetworkProvider>
+            <AuthProvider>
+              <NotificationProvider>
+                <AppNavigator />
+                <OfflineBanner />
+                <Toast />
+              </NotificationProvider>
+            </AuthProvider>
+          </NetworkProvider>
+        </ThemeProvider>
+      </SafeAreaProvider>
     </GestureHandlerRootView>
   );
 }
